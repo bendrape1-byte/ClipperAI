@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+clip_engine.db
+storage/
+cookies.txt
+.env
+.DS_Store
+node_modules/
+frontend/dist/
+*.mp4
