@@ -1,0 +1,40 @@
+#!/bin/bash
+# ClipperAI launcher — double-click to start backend + frontend and open the browser.
+# Close the Terminal window to stop both servers.
+
+cd "$(dirname "$0")"
+
+# === API KEYS — paste values between the quotes, then save ===
+export OPENAI_API_KEY=""
+export ANTHROPIC_API_KEY=""
+export DEEPGRAM_API_KEY=""
+export PEXELS_API_KEY=""
+
+# First run: create Python venv + install backend deps
+if [ ! -d ".venv" ]; then
+  echo "First-time setup: creating Python venv and installing backend deps..."
+  python3 -m venv .venv
+  source .venv/bin/activate
+  pip install -r requirements.txt
+else
+  source .venv/bin/activate
+fi
+
+# First run: install frontend deps
+if [ ! -d "frontend/node_modules" ]; then
+  echo "First-time setup: installing frontend deps..."
+  (cd frontend && npm install)
+fi
+
+# Kill both servers when this Terminal window closes
+trap 'kill 0' EXIT
+
+echo "Starting backend on http://localhost:8000 ..."
+uvicorn main:app --reload &
+
+echo "Starting frontend on http://localhost:5173 ..."
+(cd frontend && npm run dev) &
+
+sleep 4
+open http://localhost:5173
+wait

@@ -9,3 +9,4 @@ cookies.txt
 node_modules/
 frontend/dist/
 *.mp4
+start.command
