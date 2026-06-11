@@ -5,6 +5,3 @@ aiofiles
 openai
 anthropic
 yt-dlp
-requests
-scenedetect[opencv]
-numpy

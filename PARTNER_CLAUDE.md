@@ -32,8 +32,6 @@ ClipperAI is a local web app that takes a podcast video, transcribes it, finds g
 - Frontend: React 18, Vite, TypeScript
 - Transcription: OpenAI Whisper
 - Clip analysis: Anthropic Claude
-- Captions: Deepgram
-- B-roll: Pexels API
 - Video processing: ffmpeg (installed via Homebrew)
 
 ## How to start/stop correctly
