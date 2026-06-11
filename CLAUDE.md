@@ -28,59 +28,64 @@ cd frontend && npm install
 ## Architecture
 
 ### Overview
-Upload/YouTube ingest → Whisper transcription → Claude clip analysis → Tier 1 render (ffmpeg) → Tier 2 production (captions + B-roll composite).
+This repo has been stripped to its **core spine**:
+
+**Upload/YouTube ingest → Whisper transcription → Claude clip analysis → 16:9 render (ffmpeg).**
+
+Caption burning, B-roll, 9:16 vertical reframe, sound effects, and per-show clip profiles have
+all been removed. Rebuilding the analysis/rendering core is the next stage — keep changes here
+to the four-step spine.
 
 ### Backend (FastAPI + SQLite)
 
 | File | Responsibility |
 |------|---------------|
-| `main.py` | App entry, CORS, router registration, lifespan (DB init + SFX seed) |
+| `main.py` | App entry, CORS, router registration, lifespan (DB init + storage dirs) |
 | `config.py` | Storage paths, Whisper chunk limits, analysis window sizes |
 | `database.py` | SQLite schema, all CRUD — single source of truth for DB |
 | `services/transcription.py` | ffmpeg audio extract → Whisper `verbose_json` (chunked, word timestamps) |
-| `services/analysis.py` | Windowed Claude analysis → clip candidates with scoring |
-| `services/rendering.py` | Tier 1 ffmpeg clip cutting (16:9) |
-| `services/reframe.py` | Scene detection + face tracking → 9:16 vertical render |
-| `services/captions.py` | Deepgram word-level SRT generation (German-accurate capitalization) |
-| `services/styled_captions.py` | SRT → ASS + ffmpeg caption burn; libass when available, drawtext fallback |
-| `services/broll.py` | Claude + Pexels B-roll suggestion, scoring, download, ffmpeg compositing |
-| `services/production.py` | Tier 2 pipeline: captions → B-roll suggest → auto-approve → composite |
+| `services/analysis.py` | Windowed Claude analysis → clip candidates with scoring → Tier-1 16:9 render |
+| `services/rendering.py` | ffmpeg clip cutting (16:9) |
+| `services/youtube.py` | yt-dlp download of a YouTube source |
+| `routes/media.py` | `/api/media/*` — upload, youtube, status, transcript, analyze, clips, render-all, download-approved |
+| `routes/clips.py` | `/api/clips/*` — render, extend, download (16:9), get, approve, reject |
 
-### B-roll pipeline (`services/broll.py`)
-- `suggest_broll(clip_id)` — sends word-timestamped transcript to Claude → filmability test prompt → Pexels multi-query search with `_score_video` scoring + slug relevance check → downloads + stores in `broll_suggestions`
-- `composite_broll(clip_id)` / `_run_composite()` — reads approved suggestions, calls `_build_composite_filter()`, runs ffmpeg
-- `_build_composite_filter()` — builds `filter_complex` using per-segment `fade=out`/`fade=in` + `concat`. **No xfade** (removed: ffmpeg 8.1 filter negotiation breaks `settb` workaround). A-roll trim end is extended by `fade_dur` so the fade-out starts exactly at `start_sec`, not before it.
-- Word-level timestamps from Whisper are stored in `transcripts.words_json` (absolute). `suggest_broll` subtracts `clip["start_sec"]` to get clip-relative times before storing in `broll_suggestions.start_word`/`end_word`.
-
-### Caption pipeline (`services/captions.py` → `services/styled_captions.py`)
-- Deepgram nova-2 with `punctuate=true`. German noun capitalization comes from the `transcript` string (capitalized), not the `words` array (lowercase) — cross-referenced by token index.
-- Chunking: `max_chars=14`, `_MIN_DURATION=3/30s`. Single words ≥ 3 frames or ending a sentence stand alone; otherwise paired.
-- 9:16 vertical: captions positioned at 57.5% from top via `\an5\pos(cx,cy)` in ASS. 16:9: standard bottom position.
-
-### Production pipeline (`services/production.py`)
-- `produce_clip(clip_id)` runs sequentially: burn captions → suggest B-roll → auto-approve → composite 16:9 → composite 9:16
-- `production_step` column written at each stage; cleared on completion; polled by frontend every 3s
+### Pipeline flow
+1. **Ingest** — `POST /api/media/upload` (MP4) or `POST /api/media/youtube`. Stored in
+   `media_assets`; an audio-extraction background task kicks off immediately.
+2. **Transcribe** — `services/transcription.py` extracts audio and runs Whisper (chunked, with
+   word timestamps); result stored in `transcripts` (`transcript_json` + `words_json`).
+3. **Find** — `POST /api/media/{id}/analyze` runs `services/analysis.py`: the transcript is split
+   into overlapping windows (`WINDOW_SIZE`/`WINDOW_OVERLAP`), each sent to Claude, hook
+   timestamps are corrected against the word data, candidates deduplicated, then stored in
+   `clip_candidates`. An optional freeform `context` string can be passed to inform scoring.
+4. **Cut 16:9** — analysis then drives Tier-1 rendering: `_render_tier1` calls `render_clip` per
+   candidate (up to 3 workers), writing `preview_path`. The clips page polls until ready.
 
 ### Database schema notes
-- `database.py` uses `ALTER TABLE … ADD COLUMN` with `try/except` for forward migrations — new columns are safe to add without dropping the DB.
-- `clip_candidates` key columns: `preview_path` (16:9 render), `vertical_path` (9:16), `captioned_path`, `broll_path`, `produced_path`, `production_status`, `production_step`
-- `broll_suggestions`: `start_sec`/`end_sec` are clip-relative (seconds from clip start), `start_word`/`end_word` for logging/debug
+- `database.py` uses `ALTER TABLE … ADD COLUMN` with `try/except` for forward migrations.
+- **The schema is intentionally frozen during the strip.** The tables and columns belonging to
+  the removed features (`clip_profiles`, `broll_suggestions`, `sfx_library`, and the
+  `vertical_*` / `captioned_*` / `broll_*` / `produced_*` / `srt_path` / `production_*` /
+  `profile_id` columns) are still created by `init_db()` but are now dead/unused. Leave them in
+  place — the next stage decides what to keep.
+- Active `clip_candidates` columns: `start_sec`, `end_sec`, `title`, `hook`, `reasoning`,
+  `score`, `transcript_excerpt`, `preview_path` (16:9 render), `status`.
 
 ### Frontend (React 18 + Vite + TypeScript)
 - Single-page app in `frontend/src/`. Views in `views/`, shared components in `components/`.
-- API client in `frontend/src/api.ts` — update the `Clip` interface there when adding DB columns surfaced by GET endpoints.
-- No routing library; view switching is handled in `App.tsx`.
+- Three views, switched in `App.tsx` (no router): `upload` → `processing` → `clips`.
+- API client in `frontend/src/api.ts` — keep the `Clip` interface in sync with the fields the
+  backend actually produces.
 
 ## Environment variables
 
 ```
 OPENAI_API_KEY=...       # Whisper transcription
-ANTHROPIC_API_KEY=...    # Claude analysis + B-roll prompts
-DEEPGRAM_API_KEY=...     # Caption SRT generation
-PEXELS_API_KEY=...       # B-roll video search
+ANTHROPIC_API_KEY=...    # Claude clip analysis
 ```
 
 ## Known constraints
 - Python 3.9 — no `X | Y` union type syntax (use `Optional[X]` or omit annotations)
-- ffmpeg must be on `PATH` (`brew install ffmpeg`); libass optional but used when present
+- ffmpeg must be on `PATH` (`brew install ffmpeg`)
 - SQLite is single-file (`clip_engine.db`, project root); no migrations tool — schema changes go in `init_db()` via `ALTER TABLE`

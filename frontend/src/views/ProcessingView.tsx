@@ -1,9 +1,8 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { getMedia, getProfile, triggerAnalysis, ClipProfile, MediaAsset } from '../api'
+import { getMedia, triggerAnalysis, MediaAsset } from '../api'
 
 interface Props {
   mediaId: number
-  profileId: number | null
   onViewClips: () => void
 }
 
@@ -78,10 +77,9 @@ function remainingText(stepIndex: number, mediaSecs: number, startMs: number, cl
   return s > 0 ? `~${m}m ${s}s left` : `~${m}m left`
 }
 
-export default function ProcessingView({ mediaId, profileId, onViewClips }: Props) {
+export default function ProcessingView({ mediaId, onViewClips }: Props) {
   const [asset, setAsset] = useState<MediaAsset | null>(null)
   const [status, setStatus] = useState('uploaded')
-  const [profile, setProfile] = useState<ClipProfile | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [stepStartTimes, setStepStartTimes] = useState<Record<number, number>>({})
   const [progress, setProgress] = useState<Record<number, number>>({})
@@ -108,15 +106,6 @@ export default function ProcessingView({ mediaId, profileId, onViewClips }: Prop
     const id = setInterval(poll, 3000)
     return () => { stopped = true; clearInterval(id) }
   }, [mediaId])
-
-  // Fetch profile if one is selected
-  useEffect(() => {
-    if (profileId) {
-      getProfile(profileId).then(setProfile).catch(() => {})
-    } else {
-      setProfile(null)
-    }
-  }, [profileId])
 
   const done = stepsDone(status, isYoutube)
   const active = activeStep(status, isYoutube)
@@ -155,7 +144,7 @@ export default function ProcessingView({ mediaId, profileId, onViewClips }: Prop
   const handleAnalyze = async () => {
     setAnalyzing(true)
     try {
-      await triggerAnalysis(mediaId, '', profileId ?? undefined)
+      await triggerAnalysis(mediaId, '')
     } catch {
       setAnalyzing(false)
     }
@@ -219,32 +208,11 @@ export default function ProcessingView({ mediaId, profileId, onViewClips }: Prop
       </div>
 
       {status === 'transcribed' && (
-        <div className="action-card column">
-          {profile ? (
-            <div className="profile-summary">
-              <div className="profile-summary-label">Clip Profile</div>
-              <div className="profile-summary-name">{profile.name}</div>
-              {profile.host_name && (
-                <div className="profile-summary-meta">Host: {profile.host_name}{profile.host_description ? ` — ${profile.host_description}` : ''}</div>
-              )}
-              {profile.guest_name && (
-                <div className="profile-summary-meta">Guest: {profile.guest_name}{profile.guest_description ? ` — ${profile.guest_description}` : ''}</div>
-              )}
-              {profile.topic && (
-                <div className="profile-summary-meta">Topic: {profile.topic}</div>
-              )}
-            </div>
-          ) : (
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-              No profile selected — analysis will use default settings.
-            </p>
-          )}
-          <div className="action-card-footer">
-            <p>Transcription complete. Ready to analyze.</p>
-            <button className="btn btn-primary" onClick={handleAnalyze} disabled={analyzing}>
-              {analyzing ? 'Starting…' : 'Start Analysis'}
-            </button>
-          </div>
+        <div className="action-card">
+          <p>Transcription complete. Ready to analyze.</p>
+          <button className="btn btn-primary" onClick={handleAnalyze} disabled={analyzing}>
+            {analyzing ? 'Starting…' : 'Start Analysis'}
+          </button>
         </div>
       )}
 
@@ -252,7 +220,7 @@ export default function ProcessingView({ mediaId, profileId, onViewClips }: Prop
         <div className="action-card">
           <p>
             Rendering clip {Math.min(clipsRendered + 1, clipsTotal)} of {clipsTotal}…
-            &nbsp;(16:9 · 9:16 · captions)
+            &nbsp;(16:9)
           </p>
         </div>
       )}

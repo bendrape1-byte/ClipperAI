@@ -10,8 +10,6 @@ from config import WINDOW_SIZE, WINDOW_OVERLAP
 from database import (
     create_clip_candidate,
     delete_clips_by_media_id,
-    get_clip_candidate,
-    get_clip_profile,
     get_clips_by_media_id,
     get_transcript_by_media_id,
     increment_clips_rendered,
@@ -53,72 +51,6 @@ SCORING GUIDE:
 
 IDEAL STRUCTURE: Hook (0–3s grabs attention) → delivers on the hook's promise with specifics → lands on a strong final statement
 SWEET SPOT: 35–65 seconds. Under 30s only if the insight is razor-sharp. Over 75s needs exceptional narrative momentum to hold."""
-
-_TONE_LABELS = {
-    "educational": "Educational", "contrarian": "Contrarian",
-    "inspirational": "Inspirational", "entertainment": "Entertainment",
-    "raw_unfiltered": "Raw & Unfiltered", "storytelling": "Storytelling",
-}
-_AUDIENCE_LABELS = {
-    "entrepreneurs": "Entrepreneurs", "marketers": "Marketers",
-    "general": "General Audience", "creators": "Creators",
-    "technical": "Technical", "executives": "Executives",
-}
-_PRIORITY_LABELS = {
-    "strong_hooks": "Strong Hooks", "actionable_advice": "Actionable Advice",
-    "emotional_moments": "Emotional Moments", "controversial_takes": "Controversial Takes",
-    "funny_moments": "Funny Moments", "storytelling": "Storytelling",
-    "data_driven": "Data-Driven Insights",
-}
-_AVOID_LABELS = {
-    "inside_jokes": "Inside Jokes", "heavy_jargon": "Heavy Jargon",
-    "requires_context": "Requires Context", "self_promotion": "Self-Promotion",
-    "vague_motivation": "Vague Motivation", "long_intros": "Long Intros",
-}
-
-
-def _parse_json_field(val) -> list:
-    if not val:
-        return []
-    try:
-        return json.loads(val) if isinstance(val, str) else val
-    except (json.JSONDecodeError, TypeError):
-        return []
-
-
-def build_profile_context(profile: dict) -> str:
-    lines = ["PODCAST PROFILE:"]
-    lines.append(f"Show: {profile['name']}")
-    host_line = profile["host_name"]
-    if profile.get("host_description"):
-        host_line += f" — {profile['host_description']}"
-    lines.append(f"Host: {host_line}")
-    if profile.get("guest_name"):
-        guest_line = profile["guest_name"]
-        if profile.get("guest_description"):
-            guest_line += f" — {profile['guest_description']}"
-        lines.append(f"Guest: {guest_line}")
-    if profile.get("topic"):
-        lines.append(f"Episode topic: {profile['topic']}")
-
-    tone = _parse_json_field(profile.get("tone"))
-    audience = _parse_json_field(profile.get("audience"))
-    priorities = _parse_json_field(profile.get("priorities"))
-    avoid = _parse_json_field(profile.get("avoid"))
-
-    if tone:
-        lines.append("\nTone: " + ", ".join(_TONE_LABELS.get(t, t) for t in tone))
-    if audience:
-        lines.append("Target audience: " + ", ".join(_AUDIENCE_LABELS.get(a, a) for a in audience))
-    if priorities:
-        lines.append("Prioritize clips that are: " + ", ".join(_PRIORITY_LABELS.get(p, p) for p in priorities))
-    if avoid:
-        lines.append("Avoid clips that contain: " + ", ".join(_AVOID_LABELS.get(a, a) for a in avoid))
-    if profile.get("additional_notes"):
-        lines.append(f"\nAdditional notes: {profile['additional_notes']}")
-
-    return "\n".join(lines)
-
 
 def _format_timestamp(seconds: float) -> str:
     h = int(seconds // 3600)
@@ -301,20 +233,13 @@ def _deduplicate(candidates: list) -> list:
 
 def _render_tier1_clip(clip_id: int, media_id: int):
     """
-    Render one clip through all three Tier 1 steps sequentially:
-    16:9 cut → SRT captions → 9:16 vertical reframe.
+    Render one clip's 16:9 cut.
     Always increments clips_rendered so the progress counter never stalls.
     """
     from services.rendering import render_clip
-    from services.captions import generate_srt_task
-    from services.reframe import render_vertical_clip
 
     try:
         render_clip(clip_id)
-        clip = get_clip_candidate(clip_id)
-        if clip and clip.get("preview_path"):
-            generate_srt_task(clip_id)
-            render_vertical_clip(clip_id)
     finally:
         increment_clips_rendered(media_id)
 
@@ -353,18 +278,12 @@ def _render_tier1(media_id: int, clips: list):
     logger.info("Tier 1 rendering complete for media_id=%s", media_id)
 
 
-def analyze_media(media_id: int, context: str = "", profile_id: Optional[int] = None):
+def analyze_media(media_id: int, context: str = ""):
     """
     Background task: sends transcript windows to Claude, stores clip candidates.
     Triggered via POST /api/media/{id}/analyze.
     """
     update_media_asset(media_id, status="analyzing")
-
-    if profile_id:
-        profile = get_clip_profile(profile_id)
-        if profile:
-            context = build_profile_context(profile)
-            update_media_asset(media_id, profile_id=profile_id)
 
     logger.info("Analyzing transcript for media_id=%s", media_id)
 

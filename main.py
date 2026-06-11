@@ -7,13 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from config import ORIGINALS_DIR, AUDIO_DIR, CLIPS_DIR, CAPTIONS_DIR, VERTICAL_DIR
+from config import ORIGINALS_DIR, AUDIO_DIR, CLIPS_DIR
 from database import init_db
-from routes.broll import router as broll_router
 from routes.clips import router as clips_router
 from routes.media import router as media_router
-from routes.profiles import router as profiles_router
-from routes.sfx import router as sfx_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,12 +18,9 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from config import BROLL_DIR, SFX_DIR
-    from services.sfx_seed import seed_sfx_library
-    for directory in (ORIGINALS_DIR, AUDIO_DIR, CLIPS_DIR, CAPTIONS_DIR, VERTICAL_DIR, BROLL_DIR, SFX_DIR):
+    for directory in (ORIGINALS_DIR, AUDIO_DIR, CLIPS_DIR):
         os.makedirs(directory, exist_ok=True)
     init_db()
-    seed_sfx_library()
     logger.info("Clip Engine ready.")
     yield
 
@@ -40,11 +34,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(media_router,    prefix="/api")
-app.include_router(clips_router,    prefix="/api")
-app.include_router(profiles_router, prefix="/api")
-app.include_router(broll_router,    prefix="/api")
-app.include_router(sfx_router,      prefix="/api")
+app.include_router(media_router, prefix="/api")
+app.include_router(clips_router, prefix="/api")
 
 FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "frontend", "dist")
 if os.path.isdir(FRONTEND_DIST):

@@ -1,43 +1,17 @@
 import { useState } from 'react'
-import { ClipProfile } from './api'
 import UploadView from './views/UploadView'
 import ProcessingView from './views/ProcessingView'
 import ClipsView from './views/ClipsView'
-import ProfileFormView from './views/ProfileFormView'
-import SfxLibraryView from './views/SfxLibraryView'
 
-type View = 'upload' | 'processing' | 'clips' | 'profile-form' | 'sfx-library'
+type View = 'upload' | 'processing' | 'clips'
 
 export default function App() {
   const [view, setView] = useState<View>('upload')
   const [mediaId, setMediaId] = useState<number | null>(null)
-  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null)
-  const [editingProfile, setEditingProfile] = useState<ClipProfile | null>(null)
 
   const handleUploaded = (id: number) => {
     setMediaId(id)
     setView('processing')
-  }
-
-  const handleCreateProfile = () => {
-    setEditingProfile(null)
-    setView('profile-form')
-  }
-
-  const handleEditProfile = (profile: ClipProfile) => {
-    setEditingProfile(profile)
-    setView('profile-form')
-  }
-
-  const handleProfileSaved = (id: number) => {
-    setSelectedProfileId(id)
-    setEditingProfile(null)
-    setView('upload')
-  }
-
-  const handleProfileBack = () => {
-    setEditingProfile(null)
-    setView('upload')
   }
 
   return (
@@ -63,43 +37,20 @@ export default function App() {
               </button>
             </>
           )}
-          <button
-            className={`nav-btn ${view === 'sfx-library' ? 'active' : ''}`}
-            onClick={() => setView('sfx-library')}
-          >
-            Sound Library
-          </button>
         </nav>
       </header>
       <main className="main">
         {view === 'upload' && (
-          <UploadView
-            onUploaded={handleUploaded}
-            selectedProfileId={selectedProfileId}
-            onSelectProfile={setSelectedProfileId}
-            onCreateProfile={handleCreateProfile}
-            onEditProfile={handleEditProfile}
-          />
-        )}
-        {view === 'profile-form' && (
-          <ProfileFormView
-            onSaved={handleProfileSaved}
-            onBack={handleProfileBack}
-            initialProfile={editingProfile ?? undefined}
-          />
+          <UploadView onUploaded={handleUploaded} />
         )}
         {view === 'processing' && mediaId !== null && (
           <ProcessingView
             mediaId={mediaId}
-            profileId={selectedProfileId}
             onViewClips={() => setView('clips')}
           />
         )}
         {view === 'clips' && mediaId !== null && (
           <ClipsView mediaId={mediaId} />
-        )}
-        {view === 'sfx-library' && (
-          <SfxLibraryView />
         )}
       </main>
     </div>

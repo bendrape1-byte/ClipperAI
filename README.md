@@ -1,6 +1,6 @@
 # ClipperAI
 
-Upload a podcast MP4 (or paste a YouTube URL) → transcribe with Whisper → find clip candidates with Claude → render clips → generate captions and 9:16 vertical versions.
+Upload a podcast MP4 (or paste a YouTube URL) → transcribe with Whisper → find clip candidates with Claude → cut them as 16:9.
 
 ## Prerequisites
 
@@ -13,9 +13,8 @@ Upload a podcast MP4 (or paste a YouTube URL) → transcribe with Whisper → fi
 Create a `.env` file or export these before starting:
 
 ```
-OPENAI_API_KEY=...
-ANTHROPIC_API_KEY=...
-DEEPGRAM_API_KEY=...   # only needed for SRT generation
+OPENAI_API_KEY=...       # Whisper transcription
+ANTHROPIC_API_KEY=...    # Claude clip analysis
 ```
 
 ## Setup and run
@@ -48,22 +47,17 @@ ClipperAI/
 ├── requirements.txt
 ├── services/
 │   ├── transcription.py     # ffmpeg audio extraction + Whisper transcription
-│   ├── analysis.py          # Claude clip analysis, windowing, deduplication
+│   ├── analysis.py          # Claude clip analysis, windowing, dedup, 16:9 render
 │   ├── rendering.py         # ffmpeg clip cutting (16:9)
-│   ├── reframe.py           # Scene detection + face tracking + 9:16 rendering
-│   ├── captions.py          # Deepgram SRT generation
 │   └── youtube.py           # yt-dlp download
 ├── routes/
 │   ├── media.py             # /api/media/* endpoints
-│   ├── clips.py             # /api/clips/* endpoints
-│   └── profiles.py          # /api/profiles/* endpoints
+│   └── clips.py             # /api/clips/* endpoints
 ├── frontend/                # React 18 + Vite + TypeScript
 └── storage/
     ├── originals/           # uploaded / downloaded MP4s
-    ├── audio/               # extracted MP3s
-    ├── clips/               # rendered 16:9 clips
-    ├── vertical/            # rendered 9:16 clips
-    └── captions/            # generated SRT files
+    ├── audio/               # extracted audio
+    └── clips/               # rendered 16:9 clips
 ```
 
 ## API endpoints
@@ -73,18 +67,17 @@ ClipperAI/
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/api/media/upload` | Upload an MP4 (multipart, field `file`) |
-| `POST` | `/api/media/youtube` | Ingest a YouTube URL (`{ url, profile_id? }`) |
+| `POST` | `/api/media/youtube` | Ingest a YouTube URL (`{ url }`) |
 | `GET`  | `/api/media/{id}` | Full metadata for a media asset |
 | `GET`  | `/api/media/{id}/status` | Current status string |
 | `GET`  | `/api/media/{id}/transcript` | Full transcript with segments |
-| `POST` | `/api/media/{id}/analyze` | Start clip analysis (`{ context?, profile_id? }`) |
+| `POST` | `/api/media/{id}/analyze` | Start clip analysis (`{ context? }`) |
 | `GET`  | `/api/media/{id}/clips` | List all clip candidates |
 | `POST` | `/api/media/{id}/render-all` | Queue 16:9 render for all clips |
-| `POST` | `/api/media/{id}/generate-all-srt` | Queue SRT generation for all rendered clips |
-| `POST` | `/api/media/{id}/render-all-vertical` | Queue 9:16 render for all rendered clips |
+| `GET`  | `/api/media/{id}/download-approved` | Download all approved clips as a zip |
 
 **Media status lifecycle:**
-`uploaded` / `downloading` → `processing` → `transcribing` → `transcribed` → `analyzing` → `ready` (or `error`)
+`uploaded` / `downloading` → `processing` → `transcribing` → `transcribed` → `analyzing` → `rendering` → `ready` (or `error`)
 
 ### Clips
 
@@ -93,19 +86,9 @@ ClipperAI/
 | `POST` | `/api/clips/{id}/render` | Queue 16:9 render for one clip |
 | `POST` | `/api/clips/{id}/extend` | Adjust start/end (`{ start_delta, end_delta }`) and re-render |
 | `GET`  | `/api/clips/{id}/download` | Download rendered 16:9 clip |
-| `POST` | `/api/clips/{id}/generate-srt` | Queue SRT generation |
-| `GET`  | `/api/clips/{id}/download-srt` | Download SRT file |
-| `POST` | `/api/clips/{id}/render-vertical` | Queue 9:16 vertical render |
-| `GET`  | `/api/clips/{id}/download-vertical` | Download rendered 9:16 clip |
-
-### Profiles
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/profiles` | Create a clip profile |
-| `GET`  | `/api/profiles` | List all profiles |
-| `GET`  | `/api/profiles/{id}` | Get one profile |
-| `PUT`  | `/api/profiles/{id}` | Update a profile |
+| `GET`  | `/api/clips/{id}` | Get one clip candidate |
+| `POST` | `/api/clips/{id}/approve` | Mark a clip approved |
+| `POST` | `/api/clips/{id}/reject` | Mark a clip rejected |
 
 ## Storage
 

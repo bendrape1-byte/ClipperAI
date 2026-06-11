@@ -3,7 +3,6 @@ import json
 import os
 import uuid
 import zipfile
-from typing import Optional
 
 import aiofiles
 from fastapi import APIRouter, BackgroundTasks, Body, File, HTTPException, UploadFile
@@ -16,11 +15,8 @@ from database import (
     get_clips_by_media_id,
     get_media_asset,
     get_transcript_by_media_id,
-    update_media_asset,
 )
 from services.analysis import analyze_media
-from services.captions import generate_srt_task
-from services.reframe import render_vertical_clip
 from services.rendering import render_clip
 from services.transcription import extract_audio
 from services.youtube import download_youtube, is_youtube_url
@@ -30,12 +26,10 @@ router = APIRouter()
 
 class YoutubeRequest(BaseModel):
     url: str
-    profile_id: Optional[int] = None
 
 
 class AnalyzeRequest(BaseModel):
     context: str = ""
-    profile_id: Optional[int] = None
 
 
 @router.post("/media/upload", status_code=201)
@@ -69,8 +63,6 @@ def youtube_ingest(body: YoutubeRequest, background_tasks: BackgroundTasks):
         source_type="youtube",
         source_url=body.url,
     )
-    if body.profile_id:
-        update_media_asset(media_id, profile_id=body.profile_id)
     background_tasks.add_task(download_youtube, media_id, body.url)
     return {"id": media_id, "status": "downloading"}
 
@@ -122,7 +114,7 @@ def trigger_analysis(
             status_code=400,
             detail="No transcript yet — transcription must complete first.",
         )
-    background_tasks.add_task(analyze_media, media_id, body.context, body.profile_id)
+    background_tasks.add_task(analyze_media, media_id, body.context)
     return {"id": media_id, "status": "analyzing"}
 
 
@@ -149,28 +141,6 @@ def render_all(media_id: int, background_tasks: BackgroundTasks):
     return {"media_asset_id": media_id, "queued": len(clips)}
 
 
-@router.post("/media/{media_id}/generate-all-srt", status_code=202)
-def generate_all_srt(media_id: int, background_tasks: BackgroundTasks):
-    if not get_media_asset(media_id):
-        raise HTTPException(status_code=404, detail="Media not found.")
-    clips = get_clips_by_media_id(media_id)
-    ready = [c for c in clips if c.get("status") == "ready" and c.get("preview_path")]
-    for clip in ready:
-        background_tasks.add_task(generate_srt_task, clip["id"])
-    return {"media_asset_id": media_id, "queued": len(ready)}
-
-
-@router.post("/media/{media_id}/render-all-vertical", status_code=202)
-def render_all_vertical(media_id: int, background_tasks: BackgroundTasks):
-    if not get_media_asset(media_id):
-        raise HTTPException(status_code=404, detail="Media not found.")
-    clips = get_clips_by_media_id(media_id)
-    ready = [c for c in clips if c.get("status") == "ready" and c.get("preview_path")]
-    for clip in ready:
-        background_tasks.add_task(render_vertical_clip, clip["id"])
-    return {"media_asset_id": media_id, "queued": len(ready)}
-
-
 @router.get("/media/{media_id}/download-approved")
 def download_approved(media_id: int):
     if not get_media_asset(media_id):
@@ -184,12 +154,7 @@ def download_approved(media_id: int):
     added = 0
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for clip in approved:
-            # Best available: produced > captioned > raw
-            path = (
-                clip.get("produced_path") or
-                clip.get("captioned_path") or
-                clip.get("preview_path")
-            )
+            path = clip.get("preview_path")
             if path and os.path.exists(path):
                 safe_title = (clip.get("title") or f"clip_{clip['id']}").replace(" ", "_")[:40]
                 zf.write(path, f"{safe_title}_{clip['id']}.mp4")
