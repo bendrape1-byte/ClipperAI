@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
@@ -17,6 +18,10 @@ from database import (
 )
 
 logger = logging.getLogger(__name__)
+
+MIN_CLIP_SEC = 10       # resolved clips shorter than this fall back / get dropped
+MAX_CLIP_SEC = 180      # hard cap on clip length and on the sentence-end forward walk
+MIN_QUOTE_MATCH = 2     # minimum matched words for a quote anchor to count
 
 SOCIAL_MEDIA_SYSTEM_PROMPT = """You are an expert short-form video strategist and editor. You identify moments in podcast transcripts that will perform as standalone clips on Instagram Reels, TikTok, and YouTube Shorts.
 
@@ -92,53 +97,130 @@ def _clean_word(w: str) -> str:
     return w.lower().strip('.,!?":;\'- ')
 
 
-def _find_word_start_for_hook(words: list, hook: str) -> Optional[float]:
+def _match_quote(words: list, quote: str, min_idx: int = 0) -> Optional[tuple]:
     """
-    Find the precise start time of the hook's first word using word-level timestamps.
-    Scans for the best consecutive run matching the opening of the hook.
+    Find the best consecutive run of word timestamps matching a verbatim quote.
+    Normalizes via _clean_word, allows fuzzy containment either way, tolerates
+    isolated mismatches inside the run. Returns (start_idx, end_idx, score) or
+    None if fewer than MIN_QUOTE_MATCH words line up.
     """
-    if not words or not hook:
+    if not words or not quote:
         return None
-    hook_words = [_clean_word(w) for w in hook.split() if w.strip()]
-    if not hook_words:
+    quote_words = [_clean_word(w) for w in quote.split()]
+    quote_words = [w for w in quote_words if w]
+    if not quote_words:
         return None
-    best_start = None
+    best = None
     best_score = 0
-    for i, w in enumerate(words):
-        wt = _clean_word(w["word"])
-        if not wt or not (wt == hook_words[0] or hook_words[0] in wt or wt in hook_words[0]):
+    for i in range(min_idx, len(words)):
+        wt = _clean_word(words[i]["word"])
+        if not wt or not (wt == quote_words[0] or quote_words[0] in wt or wt in quote_words[0]):
             continue
         score = 1
-        for j in range(1, min(6, len(hook_words))):
-            if i + j < len(words):
-                wt2 = _clean_word(words[i + j]["word"])
-                hw = hook_words[j]
-                if hw == wt2 or hw in wt2 or wt2 in hw:
-                    score += 1
+        end_idx = i
+        for j in range(1, len(quote_words)):
+            if i + j >= len(words):
+                break
+            wt2 = _clean_word(words[i + j]["word"])
+            qw = quote_words[j]
+            if wt2 and (qw == wt2 or qw in wt2 or wt2 in qw):
+                score += 1
+                end_idx = i + j
         if score > best_score:
             best_score = score
-            best_start = w["start"]
-    return best_start if best_score >= 2 else None
+            best = (i, end_idx, score)
+    return best if best_score >= MIN_QUOTE_MATCH else None
 
 
-def _find_segment_for_hook(segments: list, hook: str) -> Optional[float]:
-    """Fallback: segment-level word overlap match."""
-    hook_words = set(hook.lower().split())
-    if not hook_words:
+def _snap_start(segments: list, t_start: float) -> float:
+    """Start of the segment containing (or nearest before) t_start."""
+    best = None
+    for s in segments:
+        if s["start"] <= t_start:
+            best = s["start"]
+        else:
+            break
+    return best if best is not None else t_start
+
+
+def _snap_end(segments: list, t_end: float, snapped_start: float) -> Optional[float]:
+    """
+    End of the first segment at/after t_end whose text ends a sentence (. ! ?).
+    The forward walk is capped at snapped_start + MAX_CLIP_SEC. If no sentence
+    end exists within the cap (transcripts whose segments break mid-sentence),
+    falls back to t_end itself — the end of the last quoted word — rather than
+    a segment end that may include the dangling start of the next sentence.
+    Returns None if t_end lies beyond every segment.
+    """
+    idx = None
+    for i, s in enumerate(segments):
+        if s["end"] >= t_end:
+            idx = i
+            break
+    if idx is None:
         return None
-    best_score = 0
-    best_start = None
-    for seg in segments:
-        seg_words = set(seg["text"].lower().split())
-        score = len(hook_words & seg_words)
-        if score > best_score:
-            best_score = score
-            best_start = seg["start"]
-    return best_start if best_score >= 3 else None
+    for s in segments[idx:]:
+        if s["end"] - snapped_start > MAX_CLIP_SEC:
+            break
+        if s["text"].strip().endswith((".", "!", "?")):
+            return s["end"]
+    return t_end
 
 
-def _analyze_window(client, window: dict, context: str = "") -> list:
-    """Send one transcript window to Claude and return clip candidates."""
+def _resolve_boundaries(c: dict, window: dict, stats: Counter) -> bool:
+    """
+    Anchor a candidate to sentence boundaries: locate start_quote/end_quote in
+    the window's word timestamps, snap both ends to segment boundaries, and
+    overwrite c["start_sec"]/c["end_sec"]. Falls back to Claude's numeric times
+    when matching fails; returns False if the candidate should be dropped.
+    """
+    words = window.get("words", [])
+    segments = window["segments"]
+
+    t_start = t_end = None
+    m_start = _match_quote(words, c.get("start_quote", ""))
+    if m_start:
+        stats["start_match_ok"] += 1
+        t_start = words[m_start[0]]["start"]
+        m_end = _match_quote(words, c.get("end_quote", ""), min_idx=m_start[0] + 1)
+    else:
+        stats["start_match_fail"] += 1
+        m_end = _match_quote(words, c.get("end_quote", ""))
+    if m_end:
+        stats["end_match_ok"] += 1
+        t_end = words[m_end[1]]["end"]
+    else:
+        stats["end_match_fail"] += 1
+
+    if t_start is not None and t_end is not None and t_end > t_start:
+        start = _snap_start(segments, t_start)
+        end = _snap_end(segments, t_end, start)
+        if end is not None and MIN_CLIP_SEC <= end - start <= MAX_CLIP_SEC:
+            c["start_sec"] = start
+            c["end_sec"] = end
+            c["boundary_method"] = "snapped"
+            stats["snapped"] += 1
+            return True
+
+    start = c.get("start_sec")
+    end = c.get("end_sec")
+    if (
+        isinstance(start, (int, float))
+        and isinstance(end, (int, float))
+        and MIN_CLIP_SEC <= end - start <= MAX_CLIP_SEC
+    ):
+        c["boundary_method"] = "fallback"
+        stats["fallback"] += 1
+        return True
+
+    stats["dropped"] += 1
+    return False
+
+
+def _analyze_window(client, window: dict, context: str = "", stats: Optional[Counter] = None) -> list:
+    """Send one transcript window to Claude and return boundary-resolved clip candidates."""
+    if stats is None:
+        stats = Counter()
     lines = [
         f"[{_format_timestamp(s['start'])}] {s['text'].strip()}"
         for s in window["segments"]
@@ -157,11 +239,18 @@ def _analyze_window(client, window: dict, context: str = "") -> list:
 
 Find the 3-6 best clip candidates from this window. Be selective — only include genuinely strong moments. Apply the scoring guide strictly.
 
+Each clip must be a complete, self-contained thought: it must BEGIN at the start of a complete thought and END at the end of one — never mid-sentence. Mark its boundaries with two verbatim quotes:
+- "start_quote": the exact first 6-10 words of the clip, copied word-for-word from the transcript above, marking where the clip BEGINS.
+- "end_quote": the exact last 6-10 words of the clip, copied word-for-word from the transcript above, marking where the clip ENDS.
+Copy both quotes EXACTLY as written in the transcript (same words, same order) so they can be located automatically. The quotes are authoritative for the clip boundaries; start_sec/end_sec are approximate hints only.
+
 Return ONLY a valid JSON array, no other text, no markdown:
 [
   {{
-    "start_sec": <float — exact second from transcript timestamps>,
-    "end_sec": <float>,
+    "start_sec": <float — approximate second from transcript timestamps, hint only>,
+    "end_sec": <float — approximate, hint only>,
+    "start_quote": "<exact first 6-10 words of the clip, verbatim from the transcript>",
+    "end_quote": "<exact last 6-10 words of the clip, verbatim from the transcript>",
     "title": "<5-8 word descriptive title>",
     "hook": "<the exact opening sentence of this clip>",
     "reasoning": "<one sentence: why this works as a standalone clip>",
@@ -194,23 +283,17 @@ Return ONLY a valid JSON array, no other text, no markdown:
             logger.warning("Could not parse Claude response as JSON")
             return []
 
+    resolved = []
     for c in candidates:
-        hook = c.get("hook", "")
-        corrected_start = _find_word_start_for_hook(window.get("words", []), hook)
-        if corrected_start is None:
-            corrected_start = _find_segment_for_hook(window["segments"], hook)
-        if corrected_start is not None:
-            original_duration = c.get("end_sec", 0) - c.get("start_sec", 0)
-            c["start_sec"] = corrected_start
-            c["end_sec"] = corrected_start + max(original_duration, 30)
-            logger.debug("Corrected timestamps for clip '%s': %.1fs", c.get("title", ""), corrected_start)
+        if _resolve_boundaries(c, window, stats):
+            resolved.append(c)
         else:
             logger.warning(
-                "Could not match hook to transcript for clip '%s' — keeping Claude's timestamps",
+                "Dropping clip '%s' — quotes unmatched and numeric times unusable",
                 c.get("title", ""),
             )
 
-    return candidates
+    return resolved
 
 
 def _deduplicate(candidates: list) -> list:
@@ -307,11 +390,21 @@ def analyze_media(media_id: int, context: str = ""):
         windows = _build_windows(segments, words)
         logger.info("Analyzing %d windows for media_id=%s", len(windows), media_id)
 
+        stats = Counter()
         all_candidates = []
         for i, window in enumerate(windows):
-            window_candidates = _analyze_window(client, window, context)
+            window_candidates = _analyze_window(client, window, context, stats)
             all_candidates.extend(window_candidates)
             logger.info("Window %d/%d: found %d candidates", i + 1, len(windows), len(window_candidates))
+
+        total = stats["snapped"] + stats["fallback"] + stats["dropped"]
+        logger.info(
+            "boundaries for media_id=%s: %d/%d snapped, %d fallback, %d dropped "
+            "(start-match %d ok/%d fail, end-match %d ok/%d fail)",
+            media_id, stats["snapped"], total, stats["fallback"], stats["dropped"],
+            stats["start_match_ok"], stats["start_match_fail"],
+            stats["end_match_ok"], stats["end_match_fail"],
+        )
 
         candidates = _deduplicate(all_candidates)
         logger.info("After deduplication: %d candidates for media_id=%s", len(candidates), media_id)
@@ -329,6 +422,7 @@ def analyze_media(media_id: int, context: str = ""):
                 reasoning=c.get("reasoning", ""),
                 score=int(c.get("score", 0)),
                 transcript_excerpt=excerpt,
+                boundary_method=c.get("boundary_method"),
             )
 
         logger.info("Analysis complete for media_id=%s — %d clips stored", media_id, len(candidates))

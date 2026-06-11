@@ -1,17 +1,40 @@
 import logging
 import os
 import subprocess
+from typing import Optional
 
 from config import CLIPS_DIR
 from database import get_clip_candidate, get_media_asset, update_clip_candidate
 
 logger = logging.getLogger(__name__)
 
+AUDIO_FADE_SEC = 0.01  # ~10ms fade at each edge to kill the click at the cut points
+
+
+def _probe_fps(source: str) -> Optional[float]:
+    """Source video fps via ffprobe r_frame_rate (e.g. '30000/1001'), or None."""
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0",
+         "-show_entries", "stream=r_frame_rate", "-of", "csv=p=0", source],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    raw = result.stdout.strip().splitlines()[0]
+    try:
+        num, _, den = raw.partition("/")
+        fps = float(num) / float(den or 1)
+    except (ValueError, ZeroDivisionError):
+        return None
+    return fps if fps > 0 else None
+
 
 def render_clip(clip_id: int):
     """
-    Background task: cut the clip from the original MP4 using ffmpeg.
-    Tries stream copy first, falls back to re-encode if that fails.
+    Background task: cut the clip from the original MP4 with a frame-accurate
+    re-encode. Input-seek + libx264 lands on the requested frame; stream copy
+    would snap to the nearest keyframe and drift off the requested time.
     """
     update_clip_candidate(clip_id, status="rendering")
 
@@ -32,25 +55,40 @@ def render_clip(clip_id: int):
         update_clip_candidate(clip_id, status="error")
         return
 
-    start    = clip["start_sec"]
-    duration = clip["end_sec"] - start
-    output_path = os.path.join(CLIPS_DIR, f"{clip_id}.mp4")
+    start = clip["start_sec"]
+    end   = clip["end_sec"]
 
-    base_args = ["ffmpeg", "-ss", str(start), "-i", source, "-t", str(duration), "-y"]
+    fps = _probe_fps(source)
+    if fps:
+        start = round(start * fps) / fps
+        end   = round(end * fps) / fps
+    else:
+        logger.warning("render_clip: could not probe fps for %s — cutting without frame rounding", source)
+
+    duration = end - start
+    if duration <= 0:
+        logger.error("render_clip: non-positive duration for clip_id=%s (%.3f)", clip_id, duration)
+        update_clip_candidate(clip_id, status="error")
+        return
+
+    output_path = os.path.join(CLIPS_DIR, f"{clip_id}.mp4")
+    fade_out_start = max(0.0, duration - AUDIO_FADE_SEC)
 
     result = subprocess.run(
-        base_args + ["-c", "copy", "-avoid_negative_ts", "make_zero", output_path],
+        [
+            "ffmpeg",
+            "-ss", f"{start:.6f}",
+            "-i", source,
+            "-t", f"{duration:.6f}",
+            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+            "-c:a", "aac",
+            "-af", f"afade=t=in:st=0:d={AUDIO_FADE_SEC},afade=t=out:st={fade_out_start:.6f}:d={AUDIO_FADE_SEC}",
+            "-y", output_path,
+        ],
         capture_output=True,
         text=True,
     )
-
-    if result.returncode != 0:
-        logger.warning("Stream copy failed for clip_id=%s, falling back to re-encode", clip_id)
-        result = subprocess.run(
-            base_args + ["-c:v", "libx264", "-c:a", "aac", output_path],
-            capture_output=True,
-            text=True,
-        )
 
     if result.returncode != 0:
         logger.error("ffmpeg render failed for clip_id=%s:\n%s", clip_id, result.stderr)

@@ -94,6 +94,7 @@ def init_db():
             ("vertical_produced_path", "TEXT"),
             ("production_status", "TEXT"),
             ("production_step", "TEXT"),
+            ("boundary_method", "TEXT"),
         ]:
             try:
                 conn.execute(f"ALTER TABLE clip_candidates ADD COLUMN {col} {definition}")
@@ -210,13 +211,13 @@ def get_transcript_by_media_id(media_asset_id: int):
 
 def create_clip_candidate(media_asset_id: int, start_sec: float, end_sec: float,
                           title: str, hook: str, reasoning: str, score: int,
-                          transcript_excerpt: str):
+                          transcript_excerpt: str, boundary_method: str = None):
     with get_connection() as conn:
         conn.execute(
             """INSERT INTO clip_candidates
-               (media_asset_id, start_sec, end_sec, title, hook, reasoning, score, transcript_excerpt)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (media_asset_id, start_sec, end_sec, title, hook, reasoning, score, transcript_excerpt),
+               (media_asset_id, start_sec, end_sec, title, hook, reasoning, score, transcript_excerpt, boundary_method)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (media_asset_id, start_sec, end_sec, title, hook, reasoning, score, transcript_excerpt, boundary_method),
         )
 
 
