@@ -11,25 +11,57 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Download audio from HubSpot video embed
+      - name: Capture media URL with headless Chromium
         run: |
-          UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-          EMBED="https://play.hubspotvideo.com/v/21368823/id/205078244450"
-          pip install --quiet yt-dlp
-          if yt-dlp --user-agent "$UA" --referer "https://www.acquisition.com/five-books" -f "ba/b" -o audio_file "$EMBED"; then
-            mv audio_file* audio_file 2>/dev/null || true
-          else
-            echo "yt-dlp failed, falling back to grepping the embed page"
-            curl -sSL -A "$UA" -e "https://www.acquisition.com/five-books" "$EMBED" -o embed.html
-            echo "embed bytes: $(wc -c < embed.html)"
-            grep -oE 'https?://[^"'"'"' <>\\)]+' embed.html | sed 's/&amp;/\&/g' | sort -u | tee embed_urls.txt
-            MEDIA=$(grep -iE '\.mp4|\.m3u8|\.mp3|\.m4a|r2\.dev' embed_urls.txt | head -1)
-            if [ -z "$MEDIA" ]; then echo "=== EMBED DUMP ==="; fold -w 300 embed.html | head -400; exit 1; fi
-            echo "Downloading: $MEDIA"
-            ffmpeg -y -user_agent "$UA" -i "$MEDIA" -vn -acodec libmp3lame audio_file
-          fi
-          file audio_file
-          ls -la audio_file
+          pip install --quiet playwright
+          playwright install --with-deps chromium
+          python - <<'EOF'
+          import asyncio, re
+          from playwright.async_api import async_playwright
+
+          EMBED = "https://play.hubspotvideo.com/v/21368823/id/205078244450?play_button_color=ffffff"
+          media = []
+
+          def sniff(url):
+              if re.search(r'\.(mp4|m3u8|mp3|m4a|webm|aac)([?#]|$)', url) or 'r2.dev' in url:
+                  media.append(url)
+
+          async def main():
+              async with async_playwright() as p:
+                  b = await p.chromium.launch(args=["--autoplay-policy=no-user-gesture-required"])
+                  pg = await b.new_page()
+                  pg.on("request", lambda r: sniff(r.url))
+                  await pg.goto(EMBED, wait_until="load", referer="https://www.acquisition.com/five-books")
+                  await pg.wait_for_timeout(5000)
+                  for sel in ["video", "button", ".play", "[class*=play]"]:
+                      try:
+                          await pg.click(sel, timeout=2000)
+                          break
+                      except Exception:
+                          pass
+                  await pg.wait_for_timeout(8000)
+                  srcs = await pg.eval_on_selector_all(
+                      "video, video source",
+                      "els => els.map(e => e.currentSrc || e.src).filter(Boolean)")
+                  media.extend(srcs)
+                  await b.close()
+
+          asyncio.run(main())
+          uniq = list(dict.fromkeys(media))
+          print("=== MEDIA URLS ===")
+          for u in uniq:
+              print(u)
+          with open("media_urls.txt", "w") as f:
+              f.write("\n".join(uniq))
+          EOF
+
+      - name: Extract audio track
+        run: |
+          MEDIA=$(grep -vE '\.ts([?#]|$)' media_urls.txt | head -1)
+          if [ -z "$MEDIA" ]; then echo "NO MEDIA URL FOUND"; exit 1; fi
+          echo "Extracting audio from: $MEDIA"
+          ffmpeg -y -loglevel error -user_agent "Mozilla/5.0" -i "$MEDIA" -vn -ac 1 -ar 16000 audio_file.wav
+          ls -la audio_file.wav
 
       - name: Transcribe with Whisper
         run: |
@@ -37,7 +69,7 @@ jobs:
           python - <<'EOF'
           from faster_whisper import WhisperModel
           model = WhisperModel("base", device="cpu", compute_type="int8")
-          segments, info = model.transcribe("audio_file")
+          segments, info = model.transcribe("audio_file.wav")
           print(f"language={info.language} duration={info.duration:.1f}s")
           print("=== TRANSCRIPT START ===")
           for s in segments:
