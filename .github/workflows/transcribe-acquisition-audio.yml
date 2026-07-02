@@ -16,10 +16,14 @@ jobs:
           UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
           curl -sSL -A "$UA" "https://www.acquisition.com/five-books" -o page.html
           echo "page bytes: $(wc -c < page.html)"
-          echo "=== AUDIO URLS ==="
-          grep -oE 'https?://[^"'"'"' <>\\]+\.(mp3|wav|m4a|ogg|aac)(\?[^"'"'"' <>\\]*)?' page.html | sed 's/&amp;/\&/g' | sort -u | tee audio_urls.txt || true
-          echo "=== AUDIO/PLAYER CONTEXT (fallback debug) ==="
-          grep -oiE '.{120}(audio|\.mp3|\.m4a|wistia|soundcloud|player).{120}' page.html | head -40 || true
+          echo "=== ALL URLS ==="
+          grep -oE 'https?://[^"'"'"' <>\\)]+' page.html | sed 's/&amp;/\&/g' | sort -u | tee all_urls.txt
+          echo "=== AUDIO CANDIDATES (r2 / audio / media) ==="
+          grep -iE 'r2\.dev|r2\.cloudflarestorage|\.mp3|\.m4a|\.wav|\.ogg|audio|sounds?/' all_urls.txt | tee audio_urls.txt || true
+          if [ ! -s audio_urls.txt ]; then
+            echo "=== NO CANDIDATES - RAW HTML DUMP ==="
+            fold -w 300 page.html
+          fi
 
       - name: Download audio
         run: |
