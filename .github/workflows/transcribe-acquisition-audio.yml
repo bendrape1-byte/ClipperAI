@@ -1,6 +1,9 @@
 name: Transcribe acquisition.com five-books audio
 
 on:
+  push:
+    branches:
+      - claude/transcribe-acquisition-audio-wn0s9c
   workflow_dispatch: {}
 
 jobs:
