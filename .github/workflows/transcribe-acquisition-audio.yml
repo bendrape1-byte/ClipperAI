@@ -1,0 +1,42 @@
+name: Transcribe acquisition.com five-books audio
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  transcribe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fetch page and locate audio URLs
+        run: |
+          UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+          curl -sSL -A "$UA" "https://www.acquisition.com/five-books" -o page.html
+          echo "page bytes: $(wc -c < page.html)"
+          echo "=== AUDIO URLS ==="
+          grep -oE 'https?://[^"'"'"' <>\\]+\.(mp3|wav|m4a|ogg|aac)(\?[^"'"'"' <>\\]*)?' page.html | sed 's/&amp;/\&/g' | sort -u | tee audio_urls.txt || true
+          echo "=== AUDIO/PLAYER CONTEXT (fallback debug) ==="
+          grep -oiE '.{120}(audio|\.mp3|\.m4a|wistia|soundcloud|player).{120}' page.html | head -40 || true
+
+      - name: Download audio
+        run: |
+          URL=$(head -1 audio_urls.txt)
+          if [ -z "$URL" ]; then echo "NO AUDIO URL FOUND"; exit 1; fi
+          echo "Downloading: $URL"
+          curl -sSL -A "Mozilla/5.0" "$URL" -o audio_file
+          file audio_file
+          ls -la audio_file
+
+      - name: Transcribe with Whisper
+        run: |
+          pip install --quiet faster-whisper
+          python - <<'EOF'
+          from faster_whisper import WhisperModel
+          model = WhisperModel("base", device="cpu", compute_type="int8")
+          segments, info = model.transcribe("audio_file")
+          print(f"language={info.language} duration={info.duration:.1f}s")
+          print("=== TRANSCRIPT START ===")
+          for s in segments:
+              print(f"[{s.start:7.1f}-{s.end:7.1f}] {s.text}")
+          print("=== TRANSCRIPT END ===")
+          EOF
