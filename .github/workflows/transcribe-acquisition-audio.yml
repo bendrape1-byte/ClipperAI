@@ -11,71 +11,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Capture media URL with headless Chromium
+      - name: Fetch site-provided transcript (VTT)
         run: |
-          pip install --quiet playwright
-          playwright install --with-deps chromium
-          python - <<'EOF'
-          import asyncio
-          from playwright.async_api import async_playwright
+          UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+          curl -sSL -A "$UA" -e "https://www.acquisition.com/five-books" \
+            "https://www.acquisition.com/media-transcripts/205165955701/en.vtt" -o transcript.vtt || true
+          echo "vtt bytes: $(wc -c < transcript.vtt)"
+          echo "=== VTT START ==="
+          cat transcript.vtt
+          echo "=== VTT END ==="
 
-          PAGE = "https://www.acquisition.com/five-books"
-          reqs, media = [], []
-
-          def on_response(r):
-              ct = r.headers.get("content-type", "")
-              if any(k in ct for k in ("video/", "audio/", "mpegurl", "octet-stream")):
-                  media.append(f"{r.url}\t{ct}")
-
-          async def main():
-              async with async_playwright() as p:
-                  b = await p.chromium.launch(args=["--autoplay-policy=no-user-gesture-required"])
-                  pg = await b.new_page()
-                  pg.on("request", lambda r: reqs.append(r.url))
-                  pg.on("response", on_response)
-                  await pg.goto(PAGE, wait_until="load")
-                  await pg.wait_for_timeout(8000)
-                  try:
-                      frame_el = await pg.wait_for_selector("iframe[data-hsv-id], .hs-video-wrapper iframe", timeout=10000)
-                      box = await frame_el.bounding_box()
-                      if box:
-                          await pg.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-                  except Exception as e:
-                      print("iframe click failed:", e)
-                  await pg.wait_for_timeout(12000)
-                  for fr in pg.frames:
-                      try:
-                          srcs = await fr.eval_on_selector_all(
-                              "video, video source",
-                              "els => els.map(e => e.currentSrc || e.src).filter(Boolean)")
-                          media.extend(f"{s}\tframe-video-src" for s in srcs)
-                      except Exception:
-                          pass
-                  await b.close()
-
-          asyncio.run(main())
-          uniq = list(dict.fromkeys(media))
-          print("=== MEDIA RESPONSES ===")
-          for u in uniq:
-              print(u)
-          with open("media_urls.txt", "w") as f:
-              f.write("\n".join(uniq))
-          print("=== ALL REQUESTS ===")
-          for u in list(dict.fromkeys(reqs))[:300]:
-              print(u)
-          EOF
-
-      - name: Extract audio track
+      - name: Whisper fallback from Mux HLS
         run: |
-          MEDIA=$(grep -iE 'm3u8|mpegurl' media_urls.txt | cut -f1 | head -1)
-          [ -z "$MEDIA" ] && MEDIA=$(grep -iE '\.mp4|video/|audio/' media_urls.txt | cut -f1 | head -1)
-          if [ -z "$MEDIA" ]; then echo "NO MEDIA URL FOUND"; exit 1; fi
-          echo "Extracting audio from: $MEDIA"
-          ffmpeg -y -loglevel error -user_agent "Mozilla/5.0" -i "$MEDIA" -vn -ac 1 -ar 16000 audio_file.wav
-          ls -la audio_file.wav
-
-      - name: Transcribe with Whisper
-        run: |
+          if [ "$(wc -c < transcript.vtt)" -gt 500 ]; then
+            echo "VTT looks good; skipping Whisper fallback"
+            exit 0
+          fi
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          ffmpeg -y -loglevel error \
+            -i "https://stream.mux.com/feCfP1A01Yv6NdTRH02qXLVpo21qDRqo02lDjIngkIi5fQ.m3u8" \
+            -vn -ac 1 -ar 16000 audio_file.wav
           pip install --quiet faster-whisper
           python - <<'EOF'
           from faster_whisper import WhisperModel
