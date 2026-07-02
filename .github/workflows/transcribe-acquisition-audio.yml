@@ -11,26 +11,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Fetch page and locate audio URLs
+      - name: Download audio from HubSpot video embed
         run: |
           UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-          curl -sSL -A "$UA" "https://www.acquisition.com/five-books" -o page.html
-          echo "page bytes: $(wc -c < page.html)"
-          echo "=== ALL URLS ==="
-          grep -oE 'https?://[^"'"'"' <>\\)]+' page.html | sed 's/&amp;/\&/g' | sort -u | tee all_urls.txt
-          echo "=== AUDIO CANDIDATES (r2 / audio / media) ==="
-          grep -iE 'r2\.dev|r2\.cloudflarestorage|\.mp3|\.m4a|\.wav|\.ogg|audio|sounds?/' all_urls.txt | tee audio_urls.txt || true
-          if [ ! -s audio_urls.txt ]; then
-            echo "=== NO CANDIDATES - RAW HTML DUMP ==="
-            fold -w 300 page.html
+          EMBED="https://play.hubspotvideo.com/v/21368823/id/205078244450"
+          pip install --quiet yt-dlp
+          if yt-dlp --user-agent "$UA" --referer "https://www.acquisition.com/five-books" -f "ba/b" -o audio_file "$EMBED"; then
+            mv audio_file* audio_file 2>/dev/null || true
+          else
+            echo "yt-dlp failed, falling back to grepping the embed page"
+            curl -sSL -A "$UA" -e "https://www.acquisition.com/five-books" "$EMBED" -o embed.html
+            echo "embed bytes: $(wc -c < embed.html)"
+            grep -oE 'https?://[^"'"'"' <>\\)]+' embed.html | sed 's/&amp;/\&/g' | sort -u | tee embed_urls.txt
+            MEDIA=$(grep -iE '\.mp4|\.m3u8|\.mp3|\.m4a|r2\.dev' embed_urls.txt | head -1)
+            if [ -z "$MEDIA" ]; then echo "=== EMBED DUMP ==="; fold -w 300 embed.html | head -400; exit 1; fi
+            echo "Downloading: $MEDIA"
+            ffmpeg -y -user_agent "$UA" -i "$MEDIA" -vn -acodec libmp3lame audio_file
           fi
-
-      - name: Download audio
-        run: |
-          URL=$(head -1 audio_urls.txt)
-          if [ -z "$URL" ]; then echo "NO AUDIO URL FOUND"; exit 1; fi
-          echo "Downloading: $URL"
-          curl -sSL -A "Mozilla/5.0" "$URL" -o audio_file
           file audio_file
           ls -la audio_file
 
