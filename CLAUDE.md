@@ -1,91 +1,61 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working on this repository.
 
-## Commands
+## What this is
 
-**Backend** (run from project root, venv activated):
-```bash
-source .venv/bin/activate
-uvicorn main:app --reload          # start dev server on :8000
-uvicorn main:app --reload --log-level debug   # with verbose logs
-```
+A Claude Code **skill**. The repo root is the skill folder: editors clone it into
+`~/.claude/skills/clipper` and Claude follows `SKILL.md`. There is no server, no database, no build step
+and no API key.
 
-**Frontend** (run from `frontend/`):
-```bash
-npm run dev      # Vite dev server on :5173
-npm run build    # TypeScript check + production build
-```
+**Pipeline:** local Whisper transcription → Claude picks clips in-session → editor reviews in a
+browser page that plays straight from the source file → export as a Premiere timeline or lossless clip
+files for CapCut. Nothing is ever rendered or re-encoded.
 
-**Dependencies** (ask before adding new ones):
-```bash
-pip install -r requirements.txt
-cd frontend && npm install
-```
-
-**No test suite exists** — validate by running the server and using the UI or `/docs`.
-
-## Architecture
-
-### Overview
-This repo has been stripped to its **core spine**:
-
-**Upload/YouTube ingest → Whisper transcription → Claude clip analysis → 16:9 render (ffmpeg).**
-
-Caption burning, B-roll, 9:16 vertical reframe, sound effects, and per-show clip profiles have
-all been removed. Rebuilding the analysis/rendering core is the next stage — keep changes here
-to the four-step spine.
-
-### Backend (FastAPI + SQLite)
+## Files
 
 | File | Responsibility |
 |------|---------------|
-| `main.py` | App entry, CORS, router registration, lifespan (DB init + storage dirs) |
-| `config.py` | Storage paths, Whisper chunk limits, analysis window sizes |
-| `database.py` | SQLite schema, all CRUD — single source of truth for DB |
-| `services/transcription.py` | ffmpeg audio extract → Whisper `verbose_json` (chunked, word timestamps) |
-| `services/analysis.py` | Windowed Claude analysis → clip candidates with scoring → Tier-1 16:9 render |
-| `services/rendering.py` | ffmpeg clip cutting (16:9) |
-| `services/youtube.py` | yt-dlp download of a YouTube source |
-| `routes/media.py` | `/api/media/*` — upload, youtube, status, transcript, analyze, clips, render-all, download-approved |
-| `routes/clips.py` | `/api/clips/*` — render, extend, download (16:9), get, approve, reject |
+| `SKILL.md` | The instructions Claude follows, including the verbatim clip-scoring brief |
+| `scripts/setup.py` | Detects the machine, picks backend + model, prints install commands, writes `config.json` |
+| `scripts/transcribe.py` | File or YouTube URL → `transcript.json` (segments + word timestamps) and `transcript.txt` |
+| `scripts/build_review.py` | `candidates.json` → sentence-snapped, de-duplicated `clips.json` + `review.html` |
+| `scripts/review_template.html` | The review UI: one static file, vanilla JS, no dependencies |
+| `scripts/export.py` | `approved.json` → `premiere.xml` (FCP7 XML) and/or stream-copied `clips/*` |
+| `scripts/test_clipper.py` | Self-check for boundary matching and timecode maths |
 
-### Pipeline flow
-1. **Ingest** — `POST /api/media/upload` (MP4) or `POST /api/media/youtube`. Stored in
-   `media_assets`; an audio-extraction background task kicks off immediately.
-2. **Transcribe** — `services/transcription.py` extracts audio and runs Whisper (chunked, with
-   word timestamps); result stored in `transcripts` (`transcript_json` + `words_json`).
-3. **Find** — `POST /api/media/{id}/analyze` runs `services/analysis.py`: the transcript is split
-   into overlapping windows (`WINDOW_SIZE`/`WINDOW_OVERLAP`), each sent to Claude, hook
-   timestamps are corrected against the word data, candidates deduplicated, then stored in
-   `clip_candidates`. An optional freeform `context` string can be passed to inform scoring.
-4. **Cut 16:9** — analysis then drives Tier-1 rendering: `_render_tier1` calls `render_clip` per
-   candidate (up to 3 workers), writing `preview_path`. The clips page polls until ready.
+Jobs live outside the repo in `~/Movies/Clipper/<name>/`.
 
-### Database schema notes
-- `database.py` uses `ALTER TABLE … ADD COLUMN` with `try/except` for forward migrations.
-- **The schema is intentionally frozen during the strip.** The tables and columns belonging to
-  the removed features (`clip_profiles`, `broll_suggestions`, `sfx_library`, and the
-  `vertical_*` / `captioned_*` / `broll_*` / `produced_*` / `srt_path` / `production_*` /
-  `profile_id` columns) are still created by `init_db()` but are now dead/unused. Leave them in
-  place — the next stage decides what to keep.
-- Active `clip_candidates` columns: `start_sec`, `end_sec`, `title`, `hook`, `reasoning`,
-  `score`, `transcript_excerpt`, `preview_path` (16:9 render), `status`.
+## Commands
 
-### Frontend (React 18 + Vite + TypeScript)
-- Single-page app in `frontend/src/`. Views in `views/`, shared components in `components/`.
-- Three views, switched in `App.tsx` (no router): `upload` → `processing` → `clips`.
-- API client in `frontend/src/api.ts` — keep the `Clip` interface in sync with the fields the
-  backend actually produces.
-
-## Environment variables
-
-```
-OPENAI_API_KEY=...       # Whisper transcription
-ANTHROPIC_API_KEY=...    # Claude clip analysis
+```bash
+python3 scripts/setup.py            # show the plan for this machine
+python3 scripts/setup.py --write    # save config.json once everything is installed
+python3 scripts/test_clipper.py     # run after touching build_review.py or export.py
+.venv/bin/python scripts/transcribe.py "<file or URL>"
+python3 scripts/build_review.py "<job>"
+python3 scripts/export.py "<job>" --premiere --capcut
 ```
 
-## Known constraints
-- Python 3.9 — no `X | Y` union type syntax (use `Optional[X]` or omit annotations)
-- ffmpeg must be on `PATH` (`brew install ffmpeg`)
-- SQLite is single-file (`clip_engine.db`, project root); no migrations tool — schema changes go in `init_db()` via `ALTER TABLE`
+Validate UI changes by rebuilding a real job's `review.html` and loading it from disk in Chrome.
+
+## Constraints
+
+- Only `transcribe.py` runs in the venv. Every other script is stdlib-only and must run on the system
+  `python3` (keep it 3.9-compatible: no `X | Y` unions).
+- Ask before adding a dependency. The review page must keep working offline, opened via `file://`.
+- Never add a step that encodes video. Previews play the source; CapCut export is `-c copy`.
+- The scoring brief in `SKILL.md` is copied word for word from the old app. Change it deliberately.
+- `ffmpeg`, `ffprobe` and `yt-dlp` must be on `PATH`; `setup.py` prints the install command.
+- Hardware thresholds in `setup.py` are first guesses, measured only on a 24 GB Apple Silicon Mac.
+
+## Direction
+
+After a few rounds of editor feedback the review page becomes a Mac app (alongside the web page) with
+local storage, and later gains a real timeline editor. Keep `review_template.html` self-contained so it
+can be wrapped in a web view; do not build any of that until asked.
+
+## Leftovers
+
+`storage/`, `clip_engine.db`, `start.command` and the `.mp4` in the root belong to the old FastAPI app.
+They are git-ignored and unused. Do not delete them without asking.

@@ -1,12 +1,13 @@
 .venv/
 __pycache__/
 *.pyc
+config.json
+.DS_Store
+
+# leftovers of the old app, kept on disk but never committed
 clip_engine.db
 storage/
 cookies.txt
 .env
-.DS_Store
-node_modules/
-frontend/dist/
 *.mp4
 start.command

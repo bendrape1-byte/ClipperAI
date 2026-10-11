@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipper review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600;700&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    /* nine roles + one radius: change these to re-theme everything */
+    --background: #0a0a0b;
+    --card: #151517;
+    --foreground: #ededea;
+    --primary-cta: #c8f560;
+    --primary-cta-text: #0a0a0b;
+    --secondary-cta: #1c1c1f;
+    --secondary-cta-text: #ffffffe6;
+    --accent: #77777d;
+    --background-accent: #7a5cff;
+    --radius: 0.75rem;
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --line: color-mix(in srgb, var(--foreground) 9%, transparent);
+    --mute: color-mix(in srgb, var(--foreground) 58%, transparent);
+    --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-tight: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+    --text-xs: clamp(0.7rem, 0.74vw, 0.78rem);
+    --text-sm: clamp(0.78rem, 0.84vw, 0.88rem);
+    --text-base: clamp(0.86rem, 0.95vw, 1rem);
+    --text-lg: clamp(0.98rem, 1.12vw, 1.15rem);
+    --text-3xl: clamp(1.3rem, 1.9vw, 2rem);
+  }
+
+  * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--primary-cta) 30%, transparent) transparent; }
+  html, body { height: 100%; overscroll-behavior: none; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font: 400 var(--text-base)/1.5 var(--font-sans);
+         display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+  body::before { content: ""; position: fixed; inset: -20%; z-index: -1; pointer-events: none; opacity: 0.5;
+    background: radial-gradient(40% 35% at 78% 12%, color-mix(in srgb, var(--background-accent) 22%, transparent), transparent 70%),
+                radial-gradient(35% 30% at 12% 88%, color-mix(in srgb, var(--primary-cta) 9%, transparent), transparent 70%);
+    animation: drift 24s ease-in-out infinite alternate; }
+  @keyframes drift { to { transform: translate3d(3%, -2%, 0) scale(1.06); } }
+  @keyframes rise { from { opacity: 0; transform: translateY(0.6em); filter: blur(5px); } }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } }
+
+  button { font: inherit; color: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--primary-cta); outline-offset: 2px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ── header ── */
+  header { display: flex; align-items: center; gap: 1rem; padding: 0.8rem 1.1rem; border-bottom: 1px solid var(--line); }
+  .mark { font: 700 var(--text-lg)/1 var(--font-tight); letter-spacing: -0.02em; display: flex; align-items: center; gap: 0.5rem; }
+  .mark i { width: 0.6em; height: 0.6em; border-radius: 50%; background: var(--primary-cta); box-shadow: 0 0 14px var(--primary-cta); }
+  .src { color: var(--mute); font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+  .tally { font-size: var(--text-sm); color: var(--mute); white-space: nowrap; }
+  .tally b { color: var(--foreground); font-weight: 600; }
+
+  /* ── buttons (the lit primary + the quiet secondary) ── */
+  .primary { border: 0; border-radius: var(--radius-md); padding: 0.62em 1.15em; font-weight: 600; white-space: nowrap;
+    background: var(--primary-cta); color: var(--primary-cta-text);
+    box-shadow: inset 0 2px 1px color-mix(in srgb, #fff 35%, transparent),
+      0 2px 1.2px -0.6px color-mix(in srgb, var(--primary-cta) 15%, transparent),
+      0 6px 3.6px -1.25px color-mix(in srgb, var(--primary-cta) 15%, transparent),
+      0 16px 9.6px -1.9px color-mix(in srgb, var(--primary-cta) 15%, transparent),
+      0 30px 20px -2.5px color-mix(in srgb, var(--primary-cta) 14%, transparent);
+    transition: transform 0.5s var(--ease), filter 0.3s; }
+  .primary:hover { transform: translateY(-1px); filter: brightness(1.06); }
+  .primary:active, .ghost:active { transform: scale(0.97); }
+  .primary:disabled { opacity: 0.35; cursor: default; transform: none; box-shadow: none; }
+  .ghost { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.42em 0.8em; background: var(--secondary-cta);
+    color: var(--secondary-cta-text); font-size: var(--text-sm); white-space: nowrap; transition: border-color 0.3s, transform 0.5s var(--ease), background 0.3s; }
+  .ghost:hover { border-color: color-mix(in srgb, var(--primary-cta) 55%, transparent); }
+
+  /* ── layout ── */
+  main { display: grid; grid-template-columns: clamp(17rem, 27vw, 25rem) minmax(0, 1fr); min-height: 0; }
+  aside { border-right: 1px solid var(--line); overflow-y: auto; padding: 0.6rem; }
+  .stage { overflow-y: auto; padding: clamp(1rem, 2vw, 2rem); }
+  .stage-in { max-width: 62rem; margin: 0 auto; display: grid; gap: 1.1rem; }
+
+  /* ── clip list ── */
+  .item { width: 100%; text-align: left; display: grid; grid-template-columns: auto 1fr auto; gap: 0.7rem; align-items: start;
+    padding: 0.7rem 0.75rem; margin-bottom: 2px; border: 1px solid transparent; border-radius: var(--radius-md); background: transparent;
+    animation: fade 0.6s ease-out both; transition: background 0.3s, border-color 0.3s; }
+  .item:hover { background: color-mix(in srgb, var(--card) 70%, transparent); }
+  .item[aria-current="true"] { background: var(--card); border-color: var(--line); }
+  .item .n { color: var(--mute); font-size: var(--text-xs); padding-top: 0.2em; min-width: 1.4em; }
+  .item .t { font: 600 var(--text-sm)/1.3 var(--font-tight); }
+  .item .m { color: var(--mute); font-size: var(--text-xs); margin-top: 0.25em; display: flex; gap: 0.7em; }
+  .item .s { color: var(--primary-cta); font-weight: 600; }
+  .dot { width: 1.15rem; height: 1.15rem; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; margin-top: 0.1em;
+    transition: background 0.4s var(--ease), border-color 0.3s, transform 0.5s var(--ease); }
+  .dot svg { width: 0.7rem; opacity: 0; transition: opacity 0.2s; }
+  .item.on .dot { background: var(--primary-cta); border-color: var(--primary-cta); transform: scale(1.08); }
+  .item.on .dot svg { opacity: 1; }
+
+  /* ── cards + pointer-tracked border glow ── */
+  .card { border-radius: var(--radius); border: 1px solid var(--line); backdrop-filter: blur(8px);
+    background: linear-gradient(to bottom right, color-mix(in srgb, var(--card) 85%, transparent), color-mix(in srgb, var(--card) 45%, transparent)); }
+  .glow { position: relative; }
+  .glow::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: radial-gradient(16rem circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--primary-cta) 75%, transparent),
+      color-mix(in srgb, var(--background-accent) 40%, transparent) 45%, transparent 72%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+    opacity: var(--on, 0); transition: opacity 0.4s; }
+
+  /* ── player ── */
+  .player { overflow: hidden; }
+  video { display: block; width: 100%; aspect-ratio: 16 / 9; max-height: 46vh; background: #000; object-fit: contain; }
+  /* ── clip details ── */
+  h1 { font: 700 var(--text-3xl)/1.12 var(--font-tight); letter-spacing: -0.025em; margin: 0.2rem 0 0; text-wrap: balance; }
+  h1 span { display: inline-block; animation: rise 0.6s ease-out both; white-space: pre; }
+  .swap > * { animation: fade 0.6s ease-out both; }
+  .hook { font-size: var(--text-lg); margin: 0; }
+  .why { color: var(--mute); margin: 0; }
+  .label { font: 600 var(--text-xs)/1 var(--font-sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--mute); }
+
+  /* ── source strip: every clip on the full length of the video ── */
+  .strip { padding: 0.8rem 0.9rem; display: grid; gap: 0.55rem; }
+  .strip .row { display: flex; justify-content: space-between; }
+  .track { position: relative; height: 1.5rem; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--foreground) 5%, transparent); }
+  .track b { position: absolute; top: 3px; bottom: 3px; min-width: 3px; border-radius: 2px; background: color-mix(in srgb, var(--foreground) 28%, transparent);
+    cursor: pointer; transition: background 0.3s, top 0.4s var(--ease), bottom 0.4s var(--ease); }
+  .track b.on { background: color-mix(in srgb, var(--primary-cta) 55%, transparent); }
+  .track b.cur { top: 0; bottom: 0; background: var(--primary-cta); box-shadow: 0 0 12px color-mix(in srgb, var(--primary-cta) 60%, transparent); }
+  .track u { position: absolute; top: -3px; bottom: -3px; width: 1.5px; background: var(--foreground); pointer-events: none; }
+
+  /* ── trim timeline: drag the ends of the clip like in a phone video editor ── */
+  .controls { display: grid; gap: 0.75rem; padding: 0.9rem; }
+  .controls .row { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
+  .times { display: flex; gap: 0.9em; align-items: baseline; }
+  .times span, .edges { color: var(--mute); font-size: var(--text-xs); }
+  .history { display: flex; gap: 0.35rem; }
+  .ghost:disabled { opacity: 0.35; cursor: default; border-color: var(--line); }
+  .trimbar { position: relative; height: 3.6rem; border-radius: var(--radius-sm); cursor: pointer; touch-action: none; user-select: none;
+    background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--foreground) 12%, transparent) 0 1px, transparent 1px var(--sec, 20px)),
+      color-mix(in srgb, var(--foreground) 5%, transparent); }
+  .region { position: absolute; top: 0; bottom: 0; border-radius: 9px; border: 2px solid var(--primary-cta); border-left-width: 0; border-right-width: 0;
+    background: color-mix(in srgb, var(--primary-cta) 16%, transparent); box-shadow: 0 0 22px -6px color-mix(in srgb, var(--primary-cta) 70%, transparent);
+    transition: left 0.5s var(--ease), width 0.5s var(--ease); }
+  .trimbar.drag .region { transition: none; }
+  .grip { position: absolute; top: -2px; bottom: -2px; width: 14px; background: var(--primary-cta); cursor: ew-resize; touch-action: none; }
+  .grip.l { left: 0; border-radius: 9px 0 0 9px; } .grip.r { right: 0; border-radius: 0 9px 9px 0; }
+  .grip::before { content: ""; position: absolute; inset: 0 -12px; }                      /* bigger hit area */
+  .grip::after { content: ""; position: absolute; left: 6px; top: 32%; bottom: 32%; width: 2px; border-radius: 2px; background: var(--primary-cta-text); opacity: 0.55; }
+  .trimbar u { position: absolute; top: -4px; bottom: -4px; width: 2px; border-radius: 2px; background: var(--foreground); pointer-events: none; }
+  .said { display: grid; gap: 0.2rem; font-size: var(--text-sm); } .said p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .said .label { display: inline-block; min-width: 5.5em; }
+  .approve[aria-pressed="true"] { background: transparent; color: var(--primary-cta); box-shadow: inset 0 0 0 1.5px var(--primary-cta); }
+  .actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  details { color: var(--mute); padding: 0.8rem 0.9rem; }
+  summary { cursor: pointer; color: var(--foreground); font-weight: 500; }
+  details p { margin: 0.6rem 0 0; }
+  .keys { font-size: var(--text-xs); color: var(--mute); display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem; }
+  kbd { font: 600 0.92em var(--font-sans); padding: 0.1em 0.45em; border-radius: 4px; border: 1px solid var(--line); background: var(--secondary-cta); color: var(--foreground); }
+  textarea { width: 100%; height: 8rem; border-radius: var(--radius-sm); background: var(--card); color: inherit; border: 1px solid var(--line); padding: 0.6rem; }
+  .empty { padding: 3rem 1rem; text-align: center; color: var(--mute); }
+
+  @media (max-width: 900px) {
+    body { display: block; overflow: auto; height: auto; }
+    header { flex-wrap: wrap; padding: 0.8rem 1rem; }
+    main { display: flex; flex-direction: column-reverse; }
+    aside { border-right: 0; border-top: 1px solid var(--line); overflow: visible; padding: 0.6rem 1rem 2rem; }
+    .stage { overflow: visible; padding: 1rem; }
+    .actions { justify-content: flex-start; }
+    .keys { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<header>
+  <div class="mark"><i></i>Clipper</div>
+  <div class="src" id="src"></div>
+  <div class="tally" id="tally"></div>
+  <button class="primary" id="copy">Copy approved clips</button>
+</header>
+
+<main>
+  <aside id="list" aria-label="Clips"></aside>
+  <section class="stage">
+    <div class="stage-in" id="stage">
+      <div class="card glow player">
+        <video id="v" controls playsinline preload="metadata"></video>
+      </div>
+
+      <div class="swap" id="info"></div>
+
+      <div class="card glow strip">
+        <div class="row"><span class="label">Where it sits in the video</span><span class="label num" id="at"></span></div>
+        <div class="track" id="track"><u id="head"></u></div>
+      </div>
+
+      <div class="card glow controls">
+        <div class="row">
+          <span class="label">Trim</span>
+          <span class="times num"><b id="int"></b><span id="len"></span><b id="outt"></b></span>
+          <span class="history">
+            <button class="ghost" id="undo" aria-label="Undo" title="Undo (Cmd+Z)">↶ Undo</button>
+            <button class="ghost" id="redo" aria-label="Redo" title="Redo (Shift+Cmd+Z)">↷ Redo</button>
+          </span>
+        </div>
+        <div class="trimbar" id="trim">
+          <div class="region" id="region">
+            <div class="grip l" id="gl" role="slider" aria-label="In point" tabindex="0"></div>
+            <div class="grip r" id="gr" role="slider" aria-label="Out point" tabindex="0"></div>
+          </div>
+          <u id="ph"></u>
+        </div>
+        <div class="row edges num"><span id="va"></span><span id="pos"></span><span id="vb"></span></div>
+        <div class="said"><p><span class="label">Starts on</span> <span id="sin"></span></p><p><span class="label">Ends on</span> <span id="sout"></span></p></div>
+        <div class="actions">
+          <button class="ghost" id="play">Play clip</button>
+          <button class="ghost" id="tail">Last 3 s</button>
+          <button class="primary approve" id="ok" aria-pressed="false">Approve</button>
+        </div>
+      </div>
+
+      <details class="card"><summary>Transcript</summary><p id="excerpt"></p></details>
+
+      <div class="keys">
+        <span><kbd>Space</kbd> play or pause</span><span><kbd>↑</kbd> <kbd>↓</kbd> previous or next clip</span>
+        <span><kbd>A</kbd> approve</span><span><kbd>←</kbd> <kbd>→</kbd> move the in point</span>
+        <span><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd> move the out point</span>
+        <span><kbd>Cmd</kbd> + <kbd>Z</kbd> undo</span>
+      </div>
+      <textarea id="fallback" hidden readonly></textarea>
+    </div>
+  </section>
+</main>
+
+<script>
+const JOB = __DATA__;
+const KEY = "clipper:" + JOB.job;
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {} };
+const clips = JOB.clips.map(c => Object.assign({}, c, saved[c.id] || {}));
+const total = JOB.duration || Math.max(1, ...clips.map(c => c.end));
+const fmt = s => {
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = (s % 60).toFixed(2).padStart(5, "0");
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + r;
+};
+const CHECK = '<svg viewBox="0 0 12 12" fill="none" stroke="#0a0a0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5l2.3 2.3 4.7-5.3"/></svg>';
+
+const v = $("v");
+const stacked = matchMedia("(max-width: 900px)");
+let cur = Math.min(saved._sel || 0, Math.max(0, clips.length - 1));
+const items = [], ticks = [];
+$("src").textContent = JOB.source_name;
+
+if (!clips.length) {
+  $("stage").replaceChildren(el("p", "empty", "No clips in this job yet."));
+  $("copy").disabled = true;
+} else {
+  v.src = JOB.source_url + "#t=" + clips[cur].start;
+
+  clips.forEach((c, i) => {
+    const b = el("button", "item");
+    b.style.animationDelay = Math.min(i, 14) * 40 + "ms";
+    const text = el("div");
+    const meta = el("div", "m num");
+    meta.append(el("span", "s", c.score + "/10"), el("span", "d"), el("span", "", fmt(c.start).split(".")[0]));
+    text.append(el("div", "t", c.title), meta);
+    const dot = el("span", "dot"); dot.innerHTML = CHECK;
+    b.append(el("span", "n num", String(i + 1).padStart(2, "0")), text, dot);
+    b.onclick = () => select(i, true);
+    $("list").append(b); items.push(b);
+
+    const t = el("b"); t.title = c.title; t.onclick = () => select(i, true);
+    $("track").append(t); ticks.push(t);
+  });
+
+}
+
+function persist() {
+  const c = clips[cur];
+  saved[c.id] = { start: c.start, end: c.end, approved: !!c.approved };
+  saved._sel = cur; save();
+}
+
+function paint() {
+  const c = clips[cur];
+  clips.forEach((k, i) => {
+    items[i].classList.toggle("on", !!k.approved);
+    items[i].setAttribute("aria-current", i === cur);
+    items[i].querySelector(".d").textContent = Math.round(k.end - k.start) + " s";
+    ticks[i].className = (k.approved ? "on " : "") + (i === cur ? "cur" : "");
+    ticks[i].style.left = k.start / total * 100 + "%";
+    ticks[i].style.width = (k.end - k.start) / total * 100 + "%";
+  });
+  trimPaint();
+  $("at").textContent = fmt(c.start).split(".")[0] + " of " + fmt(total).split(".")[0];
+  $("ok").setAttribute("aria-pressed", !!c.approved);
+  $("ok").textContent = c.approved ? "Approved" : "Approve";
+  const n = clips.filter(k => k.approved).length;
+  $("tally").innerHTML = "<b>" + n + "</b> of " + clips.length + " approved";
+  $("copy").disabled = !n;
+}
+
+function select(i, play) {
+  cur = i; const c = clips[i];
+  const h = el("h1");
+  c.title.split(" ").forEach((w, k) => { const s = el("span", "", w + " "); s.style.animationDelay = k * 40 + "ms"; h.append(s); });
+  const info = $("info"); info.replaceChildren(h);
+  if (c.hook) info.append(el("p", "hook", '"' + c.hook + '"'));
+  if (c.reasoning) info.append(el("p", "why", c.reasoning));
+  info.style.display = "grid"; info.style.gap = "0.55rem";
+  $("excerpt").textContent = c.excerpt;
+  setView(); paint(); persist();
+  if (!stacked.matches) items[i].scrollIntoView({ block: "nearest", behavior: "smooth" });
+  v.pause(); v.currentTime = c.start;
+  if (play) v.play().catch(() => {});
+}
+
+// ── trim timeline ──
+const MIN_LEN = 1;
+let view = { a: 0, b: 1 }, hist = [], redo = [];
+const WORDS = JOB.words || [];
+const wordAt = t => { let lo = 0, hi = WORDS.length; while (lo < hi) { const m = lo + hi >> 1; WORDS[m][0] < t ? lo = m + 1 : hi = m; } return lo; };
+
+function setView() {            // the stretch of video shown in the trim bar: the clip plus room to extend it
+  const c = clips[cur], pad = Math.max(8, (c.end - c.start) * 0.35);
+  view = { a: Math.max(0, c.start - pad), b: Math.min(total, c.end + pad) };
+  $("va").textContent = fmt(view.a).split(".")[0]; $("vb").textContent = fmt(view.b).split(".")[0];
+  $("trim").style.setProperty("--sec", $("trim").clientWidth / (view.b - view.a) + "px");
+}
+const pct = t => (t - view.a) / (view.b - view.a) * 100;
+
+function trimPaint() {
+  const c = clips[cur];
+  $("region").style.left = pct(c.start) + "%"; $("region").style.width = pct(c.end) - pct(c.start) + "%";
+  $("int").textContent = fmt(c.start); $("outt").textContent = fmt(c.end);
+  $("len").textContent = (c.end - c.start).toFixed(1) + " s";
+  $("gl").setAttribute("aria-valuenow", c.start); $("gr").setAttribute("aria-valuenow", c.end);
+  const i = wordAt(c.start - 0.05), j = wordAt(c.end + 0.05);
+  $("sin").textContent = WORDS.slice(i, i + 7).map(w => w[2]).join(" ") + (WORDS.length ? " …" : "");
+  $("sout").textContent = (WORDS.length ? "… " : "") + WORDS.slice(Math.max(0, j - 7), j).map(w => w[2]).join(" ");
+  $("undo").disabled = !hist.length; $("redo").disabled = !redo.length;
+}
+
+function commit(i, before) {     // write the new in/out point and remember the old one
+  const c = clips[i];
+  if (before.start !== c.start || before.end !== c.end) { hist.push({ i, before, after: { start: c.start, end: c.end } }); redo = []; }
+  setView(); paint(); persist();
+}
+
+function step(from, to, which) {
+  const e = from.pop(); if (!e) return;
+  to.push(e); Object.assign(clips[e.i], e[which]);
+  if (e.i !== cur) select(e.i, false); else { setView(); paint(); persist(); v.currentTime = clips[cur].start; }
+}
+const undoTrim = () => step(hist, redo, "before"), redoTrim = () => step(redo, hist, "after");
+
+function clampTo(key, t) {
+  const c = clips[cur];
+  return +(key === "start" ? Math.max(view.a, Math.min(t, c.end - MIN_LEN)) : Math.min(view.b, Math.max(t, c.start + MIN_LEN))).toFixed(2);
+}
+
+function nudge(key, d) {
+  const c = clips[cur], before = { start: c.start, end: c.end };
+  c[key] = +Math.max(0, Math.min(total, key === "start" ? Math.min(c[key] + d, c.end - MIN_LEN) : Math.max(c[key] + d, c.start + MIN_LEN))).toFixed(2);
+  commit(cur, before);
+  v.currentTime = key === "start" ? c.start : Math.max(c.start, c.end - 2);
+  v.play().catch(() => {});
+}
+
+function wireTrim() {
+  const bar = $("trim"), timeAt = e => { const r = bar.getBoundingClientRect(); return view.a + Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * (view.b - view.a); };
+  let seekRaf = 0;
+  const scrubTo = t => { cancelAnimationFrame(seekRaf); seekRaf = requestAnimationFrame(() => { v.currentTime = t; }); };
+  [["gl", "start"], ["gr", "end"]].forEach(([id, key]) => {
+    const g = $(id); let before = null;
+    g.addEventListener("pointerdown", e => {
+      e.stopPropagation(); try { g.setPointerCapture(e.pointerId); } catch (x) {} v.pause();
+      before = { start: clips[cur].start, end: clips[cur].end }; bar.classList.add("drag");
+    });
+    g.addEventListener("pointermove", e => {
+      if (!before) return;
+      clips[cur][key] = clampTo(key, timeAt(e)); trimPaint(); scrubTo(clips[cur][key]);
+    });
+    const done = () => {
+      if (!before) return;
+      bar.classList.remove("drag"); const b = before; before = null; commit(cur, b);
+      const c = clips[cur];                       // let the editor hear the new edge straight away
+      v.currentTime = key === "start" ? c.start : Math.max(c.start, c.end - 2); v.play().catch(() => {});
+    };
+    g.addEventListener("pointerup", done); g.addEventListener("pointercancel", done);
+  });
+  bar.addEventListener("pointerdown", e => { v.currentTime = timeAt(e); });
+  $("undo").onclick = undoTrim; $("redo").onclick = redoTrim;
+  addEventListener("resize", () => { setView(); trimPaint(); });
+}
+
+function toggle() { const c = clips[cur]; c.approved = !c.approved; paint(); persist(); }
+function playClip(from) { v.currentTime = from; v.play().catch(() => {}); }
+
+v.addEventListener("timeupdate", () => {
+  const c = clips[cur]; if (!c) return;
+  if (!v.paused && v.currentTime >= c.end) v.pause();
+  const p = pct(v.currentTime);
+  $("ph").style.left = p + "%"; $("ph").style.visibility = p < 0 || p > 100 ? "hidden" : "visible";
+  $("pos").textContent = fmt(v.currentTime);
+  $("head").style.left = v.currentTime / total * 100 + "%";
+});
+
+if (clips.length) {
+  $("play").onclick = () => playClip(clips[cur].start);
+  $("tail").onclick = () => playClip(Math.max(clips[cur].start, clips[cur].end - 3));
+  $("ok").onclick = toggle;
+
+  document.addEventListener("keydown", e => {
+    if (/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redoTrim() : undoTrim(); return; }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const c = clips[cur];
+    const map = {
+      " ": () => v.paused ? playClip(v.currentTime >= c.end || v.currentTime < c.start ? c.start : v.currentTime) : v.pause(),
+      ArrowDown: () => select(Math.min(clips.length - 1, cur + 1), true),
+      ArrowUp: () => select(Math.max(0, cur - 1), true),
+      ArrowLeft: () => nudge(e.shiftKey ? "end" : "start", -0.5),
+      ArrowRight: () => nudge(e.shiftKey ? "end" : "start", 0.5),
+      a: toggle, A: toggle,
+    };
+    if (map[e.key]) { e.preventDefault(); map[e.key](); }
+  });
+}
+
+$("copy").onclick = async () => {
+  const list = clips.filter(c => c.approved).map(c => ({ title: c.title, start: c.start, end: c.end }));
+  const text = "Export these clips:\n" + JSON.stringify({ job: JOB.job, clips: list }, null, 1);
+  const b = $("copy"), label = b.textContent;
+  try { await navigator.clipboard.writeText(text); b.textContent = "Copied. Paste it into Claude."; }
+  catch (e) { const t = $("fallback"); t.hidden = false; t.value = text; t.select(); t.scrollIntoView(); b.textContent = "Copy the text below"; }
+  setTimeout(() => { b.textContent = label; }, 2600);
+};
+
+if (clips.length) { wireTrim(); select(cur, false); }
+
+// pointer-tracked border glow
+let raf = 0;
+document.addEventListener("pointermove", e => {
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(() => document.querySelectorAll(".glow").forEach(g => {
+    const r = g.getBoundingClientRect(), p = 64;
+    const near = e.clientX > r.left - p && e.clientX < r.right + p && e.clientY > r.top - p && e.clientY < r.bottom + p;
+    g.style.setProperty("--on", near ? 1 : 0);
+    if (near) { g.style.setProperty("--mx", e.clientX - r.left + "px"); g.style.setProperty("--my", e.clientY - r.top + "px"); }
+  }));
+}, { passive: true });
+</script>
+</html>

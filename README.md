@@ -1,96 +1,40 @@
-# ClipperAI
+# Clipper
 
-Upload a podcast MP4 (or paste a YouTube URL) → transcribe with Whisper → find clip candidates with Claude → cut them as 16:9.
+Clipper is a Claude Code skill. You give it a long video, it finds the parts worth cutting into shorts, and you get them back as a Premiere timeline or as files for CapCut. Everything runs on your own machine and you do not need any API keys.
 
-## Prerequisites
+## Install
 
-- Python 3.9+
-- Node 18+
-- ffmpeg on PATH (`brew install ffmpeg`)
-
-## Environment variables
-
-Create a `.env` file or export these before starting:
-
-```
-OPENAI_API_KEY=...       # Whisper transcription
-ANTHROPIC_API_KEY=...    # Claude clip analysis
-```
-
-## Setup and run
-
-**Mac Terminal** — from the project folder:
+Clone the repo into your Claude skills folder:
 
 ```bash
-# Backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload
-
-# Frontend (separate terminal, same folder)
-cd frontend
-npm install
-npm run dev
+git clone <repo-url> ~/.claude/skills/clipper
 ```
 
-Backend: `http://localhost:8000` · API docs: `http://localhost:8000/docs`
-Frontend: `http://localhost:5173`
+Then open Claude Code and type `set up clipper`. Claude looks at your machine, tells you what it is about to install (ffmpeg, yt-dlp and Whisper) and installs it. The speech model is about 1.6 GB and downloads the first time you transcribe something.
 
-## File structure
+## Use
 
-```
-ClipperAI/
-├── main.py                  # FastAPI app, lifespan, CORS, router includes
-├── config.py                # Storage paths and tuning constants
-├── database.py              # SQLite schema and all CRUD functions
-├── requirements.txt
-├── services/
-│   ├── transcription.py     # ffmpeg audio extraction + Whisper transcription
-│   ├── analysis.py          # Claude clip analysis, windowing, dedup, 16:9 render
-│   ├── rendering.py         # ffmpeg clip cutting (16:9)
-│   └── youtube.py           # yt-dlp download
-├── routes/
-│   ├── media.py             # /api/media/* endpoints
-│   └── clips.py             # /api/clips/* endpoints
-├── frontend/                # React 18 + Vite + TypeScript
-└── storage/
-    ├── originals/           # uploaded / downloaded MP4s
-    ├── audio/               # extracted audio
-    └── clips/               # rendered 16:9 clips
-```
+Drop a video file or a YouTube link into Claude Code and ask for clips. If you know who is talking, say so. Whisper spells names better when it has seen them.
 
-## API endpoints
+1. Claude transcribes the video. A 1h48m interview took 10.5 minutes on an Apple Silicon Mac with 24 GB.
+2. Claude reads the transcript and picks the clips.
+3. A review page opens in your browser. It plays each clip straight from the original file, so there is nothing to wait for.
+4. Drag the two ends of the green bar under the player until the clip starts and ends cleanly, then approve it. The page shows the words the clip now starts and ends on while you drag.
+5. Press "Copy approved clips", paste the result into Claude and say whether you want Premiere or CapCut.
 
-### Media
+Keys on the review page: Space plays or pauses, the up and down arrows change clip, A approves, the left and right arrows move the in point, and Shift with the arrows moves the out point. Cmd+Z undoes a trim and Shift+Cmd+Z brings it back.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/media/upload` | Upload an MP4 (multipart, field `file`) |
-| `POST` | `/api/media/youtube` | Ingest a YouTube URL (`{ url }`) |
-| `GET`  | `/api/media/{id}` | Full metadata for a media asset |
-| `GET`  | `/api/media/{id}/status` | Current status string |
-| `GET`  | `/api/media/{id}/transcript` | Full transcript with segments |
-| `POST` | `/api/media/{id}/analyze` | Start clip analysis (`{ context? }`) |
-| `GET`  | `/api/media/{id}/clips` | List all clip candidates |
-| `POST` | `/api/media/{id}/render-all` | Queue 16:9 render for all clips |
-| `GET`  | `/api/media/{id}/download-approved` | Download all approved clips as a zip |
+## What you get
 
-**Media status lifecycle:**
-`uploaded` / `downloading` → `processing` → `transcribing` → `transcribed` → `analyzing` → `rendering` → `ready` (or `error`)
+For Premiere you get `premiere.xml`. Import it with File > Import and you have a sequence with every approved clip on it, cut to the frame and linked to the original video. Leave the original where it is or Premiere will ask you to relink it. Nobody has opened one of these in Premiere yet, so tell Ben how the first import goes.
 
-### Clips
+For CapCut you get one video file per clip, copied out of the original without re-encoding. Each file starts a few seconds before your in point (4.8 seconds in our test) and ends half a second after your out point. Trim both ends in CapCut.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/clips/{id}/render` | Queue 16:9 render for one clip |
-| `POST` | `/api/clips/{id}/extend` | Adjust start/end (`{ start_delta, end_delta }`) and re-render |
-| `GET`  | `/api/clips/{id}/download` | Download rendered 16:9 clip |
-| `GET`  | `/api/clips/{id}` | Get one clip candidate |
-| `POST` | `/api/clips/{id}/approve` | Mark a clip approved |
-| `POST` | `/api/clips/{id}/reject` | Mark a clip rejected |
+Everything for a video lands in `~/Movies/Clipper/<video name>/`.
 
-## Storage
+## Known limits
 
-Database: `clip_engine.db` (SQLite, auto-created on first run).
-All media files live under `storage/` (auto-created, gitignored).
+- Whisper gets names and unusual words wrong. Tell Claude the names before it transcribes.
+- The transcript has no speaker labels, so Claude sometimes has to guess who is talking.
+- The review page cannot play ProRes and some HEVC files. Claude will tell you if that happens.
+- So far it has run on one Mac. Windows and smaller Macs are untested.
