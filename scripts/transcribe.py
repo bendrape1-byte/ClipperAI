@@ -27,11 +27,20 @@ def download(url, best):
     # H.264 + AAC plays in every browser and in CapCut.
     # ponytail: YouTube only serves H.264 up to 1080p; --best takes 4K (usually AV1) instead.
     fmt = "bv*+ba/b" if best else "bv*[vcodec^=avc1]+ba[ext=m4a]/b[ext=mp4]/b"
-    out = subprocess.check_output([
-        "yt-dlp", "-f", fmt, "--merge-output-format", "mp4", "--restrict-filenames", "--no-playlist",
-        "-o", str(JOBS / "%(title).80s" / "%(title).80s.%(ext)s"),
-        "--print", "after_move:filepath", url], text=True)
-    return Path(out.strip().splitlines()[-1])
+    # The skill's own copy can update itself; a system-wide yt-dlp usually cannot and goes stale.
+    own = SKILL / "bin" / ("yt-dlp.exe" if os.name == "nt" else "yt-dlp")
+    ytdlp = str(own) if own.exists() else "yt-dlp"
+    cmd = [ytdlp, "-f", fmt, "--merge-output-format", "mp4", "--restrict-filenames", "--no-playlist",
+           "-o", str(JOBS / "%(title).80s" / "%(title).80s.%(ext)s"), "--print", "after_move:filepath", url]
+    for attempt in (1, 2):
+        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if r.returncode == 0:
+            return Path(r.stdout.strip().splitlines()[-1])
+        if attempt == 1:  # YouTube changes often: a 403 usually just means the downloader is out of date
+            subprocess.run([ytdlp, "-U"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    sys.exit("YouTube download failed, also after updating yt-dlp:\n%s\n"
+             "Ask the user to download the video with 4K Video Downloader and give you the file."
+             % r.stderr.strip()[-400:])
 
 
 def whisper(src, cfg, prompt=None):

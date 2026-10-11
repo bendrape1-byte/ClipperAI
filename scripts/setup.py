@@ -80,7 +80,7 @@ def main():
     # Homebrew, winget or admin rights: ffmpeg + ffprobe via static-ffmpeg, yt-dlp standalone.
     missing = [t for t in ("ffmpeg", "ffprobe", "yt-dlp") if not shutil.which(t)]
     need_ff = "ffmpeg" in missing or "ffprobe" in missing
-    need_yt = "yt-dlp" in missing
+    need_yt = True  # always the skill's own copy: it self-updates, a Homebrew or pip one goes stale and gets 403s
     pkgs = ([cfg["pip"]] if cfg["backend"] != "none" else []) + (["static-ffmpeg"] if need_ff else [])
 
     def has(pkg):
@@ -94,8 +94,8 @@ def main():
         if not VENV_PY.exists():
             commands.append('"%s" -m venv "%s"' % (sys.executable, SKILL / ".venv"))
         commands.append('"%s" -m pip install %s' % (VENV_PY, " ".join(to_install)))
-    if need_yt and not YTDLP.exists():
-        to_install.append("yt-dlp")
+    if not YTDLP.exists():
+        to_install.append("yt-dlp (standalone)")
         commands.append('"%s" "%s" --fetch-ytdlp' % (sys.executable, Path(__file__).resolve()))
 
     ready = not commands

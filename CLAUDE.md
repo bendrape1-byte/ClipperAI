@@ -49,9 +49,10 @@ Validate UI changes by rebuilding a real job's `review.html` and loading it from
 - Never add a step that encodes video. Previews play the source; CapCut export is `-c copy`.
 - The scoring brief in `SKILL.md` is copied word for word from the old app. Change it deliberately.
 - `ffmpeg`, `ffprobe` and `yt-dlp` are used from `PATH` when present. Otherwise `setup.py` installs
-  private copies (`static-ffmpeg` in the venv, the standalone `yt-dlp` build in `bin/`), so no Homebrew
-  or admin rights. yt-dlp is the standalone build on purpose: the PyPI package is frozen on Python 3.9
-  at a version YouTube rejects.
+  a private `static-ffmpeg` into the venv, so no Homebrew or admin rights. yt-dlp is always the
+  standalone build in `bin/`, even when one is on `PATH`: it updates itself (`transcribe.py` runs
+  `-U` and retries once on failure), while a four-month-old Homebrew copy got HTTP 403 from YouTube
+  in testing. Local files from 4K Video Downloader are the primary input; links are a convenience.
 - A new failure mode an editor can hit gets a row in the README troubleshooting table.
 - Hardware thresholds in `setup.py` are first guesses, measured only on a 24 GB Apple Silicon Mac.
   A fresh install was simulated there with the stock `/usr/bin/python3` (3.9) and no Homebrew.

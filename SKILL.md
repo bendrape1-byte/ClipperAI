@@ -31,6 +31,11 @@ Use the venv python from `config.json` (`"python"`):
 <python> SKILL_DIR/scripts/transcribe.py "<file>" --srt "<subtitles.srt>"     # weak machine
 ```
 
+Editors normally download the video with 4K Video Downloader first; its files land in
+`~/Movies/4K Video Downloader+/`. If the user names a video without giving a path, look there. A
+YouTube link works too, but when the download fails, do not debug it: ask the user to download the
+video with 4K Video Downloader and continue with that file.
+
 Run it in the background for long videos and tell the user it is running; the first run also downloads
 the model. It prints the job folder. YouTube links download as H.264 (max 1080p) so they play
 everywhere; add `--best` only if the user asks for the highest resolution. If the user named the
