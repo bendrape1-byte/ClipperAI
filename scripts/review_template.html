@@ -76,22 +76,20 @@
   .ghost:hover { border-color: color-mix(in srgb, var(--primary-cta) 55%, transparent); }
 
   /* ── layout ── */
-  main { display: grid; grid-template-columns: clamp(17rem, 27vw, 25rem) minmax(0, 1fr); min-height: 0; }
+  main { display: grid; grid-template-columns: auto minmax(0, 1fr); min-height: 0; }
   aside { border-right: 1px solid var(--line); overflow-y: auto; padding: 0.6rem; }
   .stage { overflow-y: auto; padding: clamp(1rem, 2vw, 2rem); }
   .stage-in { max-width: 62rem; margin: 0 auto; display: grid; gap: 1.1rem; }
 
   /* ── clip list ── */
-  .item { width: 100%; text-align: left; display: grid; grid-template-columns: auto 1fr auto; gap: 0.7rem; align-items: start;
-    padding: 0.7rem 0.75rem; margin-bottom: 2px; border: 1px solid transparent; border-radius: var(--radius-md); background: transparent;
+  .item { width: 100%; text-align: left; display: grid; grid-template-columns: auto auto auto; gap: 0.7rem; align-items: center;
+    padding: 0.55rem 0.7rem; margin-bottom: 2px; border: 1px solid transparent; border-radius: var(--radius-md); background: transparent;
     animation: fade 0.6s ease-out both; transition: background 0.3s, border-color 0.3s; }
   .item:hover { background: color-mix(in srgb, var(--card) 70%, transparent); }
   .item[aria-current="true"] { background: var(--card); border-color: var(--line); }
-  .item .n { color: var(--mute); font-size: var(--text-xs); padding-top: 0.2em; min-width: 1.4em; }
-  .item .t { font: 600 var(--text-sm)/1.3 var(--font-tight); }
-  .item .m { color: var(--mute); font-size: var(--text-xs); margin-top: 0.25em; display: flex; gap: 0.7em; }
-  .item .s { color: var(--primary-cta); font-weight: 600; }
-  .dot { width: 1.15rem; height: 1.15rem; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; margin-top: 0.1em;
+  .item .n { font: 600 var(--text-sm)/1 var(--font-tight); min-width: 1.5em; }
+  .item .s { color: var(--primary-cta); font-weight: 600; font-size: var(--text-xs); }
+  .dot { width: 1.15rem; height: 1.15rem; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center;
     transition: background 0.4s var(--ease), border-color 0.3s, transform 0.5s var(--ease); }
   .dot svg { width: 0.7rem; opacity: 0; transition: opacity 0.2s; }
   .item.on .dot { background: var(--primary-cta); border-color: var(--primary-cta); transform: scale(1.08); }
@@ -114,8 +112,6 @@
   h1 { font: 700 var(--text-3xl)/1.12 var(--font-tight); letter-spacing: -0.025em; margin: 0.2rem 0 0; text-wrap: balance; }
   h1 span { display: inline-block; animation: rise 0.6s ease-out both; white-space: pre; }
   .swap > * { animation: fade 0.6s ease-out both; }
-  .hook { font-size: var(--text-lg); margin: 0; }
-  .why { color: var(--mute); margin: 0; }
   .label { font: 600 var(--text-xs)/1 var(--font-sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--mute); }
 
   /* ── source strip: every clip on the full length of the video ── */
@@ -133,7 +129,7 @@
   .controls .row { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
   .times { display: flex; gap: 0.9em; align-items: baseline; }
   .times span, .edges { color: var(--mute); font-size: var(--text-xs); }
-  .history { display: flex; gap: 0.35rem; }
+  .history { display: flex; gap: 0.35rem; } .history .ghost { font-size: var(--text-lg); line-height: 1; padding: 0.3em 0.6em; }
   .ghost:disabled { opacity: 0.35; cursor: default; border-color: var(--line); }
   .trimbar { position: relative; height: 3.6rem; border-radius: var(--radius-sm); cursor: pointer; touch-action: none; user-select: none;
     background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--foreground) 12%, transparent) 0 1px, transparent 1px var(--sec, 20px)),
@@ -147,13 +143,11 @@
   .grip::before { content: ""; position: absolute; inset: 0 -12px; }                      /* bigger hit area */
   .grip::after { content: ""; position: absolute; left: 6px; top: 32%; bottom: 32%; width: 2px; border-radius: 2px; background: var(--primary-cta-text); opacity: 0.55; }
   .trimbar u { position: absolute; top: -4px; bottom: -4px; width: 2px; border-radius: 2px; background: var(--foreground); pointer-events: none; }
-  .said { display: grid; gap: 0.2rem; font-size: var(--text-sm); } .said p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .said .label { display: inline-block; min-width: 5.5em; }
   .approve[aria-pressed="true"] { background: transparent; color: var(--primary-cta); box-shadow: inset 0 0 0 1.5px var(--primary-cta); }
   .actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
   details { color: var(--mute); padding: 0.8rem 0.9rem; }
   summary { cursor: pointer; color: var(--foreground); font-weight: 500; }
-  details p { margin: 0.6rem 0 0; }
+  details p { margin: 0.6rem 0 0; } .exports { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .keys { font-size: var(--text-xs); color: var(--mute); display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem; }
   kbd { font: 600 0.92em var(--font-sans); padding: 0.1em 0.45em; border-radius: 4px; border: 1px solid var(--line); background: var(--secondary-cta); color: var(--foreground); }
   textarea { width: 100%; height: 8rem; border-radius: var(--radius-sm); background: var(--card); color: inherit; border: 1px solid var(--line); padding: 0.6rem; }
@@ -163,7 +157,8 @@
     body { display: block; overflow: auto; height: auto; }
     header { flex-wrap: wrap; padding: 0.8rem 1rem; }
     main { display: flex; flex-direction: column-reverse; }
-    aside { border-right: 0; border-top: 1px solid var(--line); overflow: visible; padding: 0.6rem 1rem 2rem; }
+    aside { border-right: 0; border-top: 1px solid var(--line); overflow: visible; padding: 0.6rem 1rem 2rem; display: flex; flex-wrap: wrap; gap: 4px; }
+    .item { width: auto; margin: 0; }
     .stage { overflow: visible; padding: 1rem; }
     .actions { justify-content: flex-start; }
     .keys { display: none; }
@@ -198,8 +193,8 @@
           <span class="label">Trim</span>
           <span class="times num"><b id="int"></b><span id="len"></span><b id="outt"></b></span>
           <span class="history">
-            <button class="ghost" id="undo" aria-label="Undo" title="Undo (Cmd+Z)">↶ Undo</button>
-            <button class="ghost" id="redo" aria-label="Redo" title="Redo (Shift+Cmd+Z)">↷ Redo</button>
+            <button class="ghost" id="undo" aria-label="Undo" title="Undo (Cmd+Z)">↶</button>
+            <button class="ghost" id="redo" aria-label="Redo" title="Redo (Shift+Cmd+Z)">↷</button>
           </span>
         </div>
         <div class="trimbar" id="trim">
@@ -210,15 +205,15 @@
           <u id="ph"></u>
         </div>
         <div class="row edges num"><span id="va"></span><span id="pos"></span><span id="vb"></span></div>
-        <div class="said"><p><span class="label">Starts on</span> <span id="sin"></span></p><p><span class="label">Ends on</span> <span id="sout"></span></p></div>
         <div class="actions">
           <button class="ghost" id="play">Play clip</button>
-          <button class="ghost" id="tail">Last 3 s</button>
           <button class="primary approve" id="ok" aria-pressed="false">Approve</button>
         </div>
       </div>
 
-      <details class="card"><summary>Transcript</summary><p id="excerpt"></p></details>
+      <details class="card"><summary>Transcript</summary><p id="excerpt"></p>
+        <p class="exports"><button class="ghost" id="txclip">Export this clip's transcript</button>
+        <button class="ghost" id="txall">Export the full transcript</button></p></details>
 
       <div class="keys">
         <span><kbd>Space</kbd> play or pause</span><span><kbd>↑</kbd> <kbd>↓</kbd> previous or next clip</span>
@@ -263,12 +258,9 @@ if (!clips.length) {
   clips.forEach((c, i) => {
     const b = el("button", "item");
     b.style.animationDelay = Math.min(i, 14) * 40 + "ms";
-    const text = el("div");
-    const meta = el("div", "m num");
-    meta.append(el("span", "s", c.score + "/10"), el("span", "d"), el("span", "", fmt(c.start).split(".")[0]));
-    text.append(el("div", "t", c.title), meta);
+    b.title = c.title;
     const dot = el("span", "dot"); dot.innerHTML = CHECK;
-    b.append(el("span", "n num", String(i + 1).padStart(2, "0")), text, dot);
+    b.append(el("span", "n num", String(i + 1)), el("span", "s num", c.score + "/10"), dot);
     b.onclick = () => select(i, true);
     $("list").append(b); items.push(b);
 
@@ -289,7 +281,6 @@ function paint() {
   clips.forEach((k, i) => {
     items[i].classList.toggle("on", !!k.approved);
     items[i].setAttribute("aria-current", i === cur);
-    items[i].querySelector(".d").textContent = Math.round(k.end - k.start) + " s";
     ticks[i].className = (k.approved ? "on " : "") + (i === cur ? "cur" : "");
     ticks[i].style.left = k.start / total * 100 + "%";
     ticks[i].style.width = (k.end - k.start) / total * 100 + "%";
@@ -308,10 +299,6 @@ function select(i, play) {
   const h = el("h1");
   c.title.split(" ").forEach((w, k) => { const s = el("span", "", w + " "); s.style.animationDelay = k * 40 + "ms"; h.append(s); });
   const info = $("info"); info.replaceChildren(h);
-  if (c.hook) info.append(el("p", "hook", '"' + c.hook + '"'));
-  if (c.reasoning) info.append(el("p", "why", c.reasoning));
-  info.style.display = "grid"; info.style.gap = "0.55rem";
-  $("excerpt").textContent = c.excerpt;
   setView(); paint(); persist();
   if (!stacked.matches) items[i].scrollIntoView({ block: "nearest", behavior: "smooth" });
   v.pause(); v.currentTime = c.start;
@@ -323,6 +310,26 @@ const MIN_LEN = 1;
 let view = { a: 0, b: 1 }, hist = [], redo = [];
 const WORDS = JOB.words || [];
 const wordAt = t => { let lo = 0, hi = WORDS.length; while (lo < hi) { const m = lo + hi >> 1; WORDS[m][0] < t ? lo = m + 1 : hi = m; } return lo; };
+
+// the transcript follows the trim: it is always the words between the in and out point
+function clipText(c) {
+  if (!WORDS.length) return c.excerpt || "";
+  return WORDS.slice(wordAt(c.start - 0.05), wordAt(c.end - 0.05)).map(w => w[2]).join(" ");
+}
+function fullText() {            // one line per sentence, each with the time it starts at
+  const lines = []; let line = [], t0 = 0;
+  WORDS.forEach((w, i) => {
+    if (!line.length) t0 = w[0];
+    line.push(w[2]);
+    if (/[.!?]$/.test(w[2]) || w[1] - t0 > 15 || i === WORDS.length - 1) { lines.push("[" + fmt(t0).split(".")[0] + "] " + line.join(" ")); line = []; }
+  });
+  return lines.join("\n");
+}
+function saveText(name, text) {
+  const a = el("a"); a.href = URL.createObjectURL(new Blob([text + "\n"], { type: "text/plain;charset=utf-8" }));
+  a.download = name.replace(/[\\/:*?"<>|]+/g, " ").trim() + ".txt"; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
 
 function setView() {            // the stretch of video shown in the trim bar: the clip plus room to extend it
   const c = clips[cur], pad = Math.max(8, (c.end - c.start) * 0.35);
@@ -338,9 +345,7 @@ function trimPaint() {
   $("int").textContent = fmt(c.start); $("outt").textContent = fmt(c.end);
   $("len").textContent = (c.end - c.start).toFixed(1) + " s";
   $("gl").setAttribute("aria-valuenow", c.start); $("gr").setAttribute("aria-valuenow", c.end);
-  const i = wordAt(c.start - 0.05), j = wordAt(c.end + 0.05);
-  $("sin").textContent = WORDS.slice(i, i + 7).map(w => w[2]).join(" ") + (WORDS.length ? " …" : "");
-  $("sout").textContent = (WORDS.length ? "… " : "") + WORDS.slice(Math.max(0, j - 7), j).map(w => w[2]).join(" ");
+  $("excerpt").textContent = clipText(c);
   $("undo").disabled = !hist.length; $("redo").disabled = !redo.length;
 }
 
@@ -411,8 +416,10 @@ v.addEventListener("timeupdate", () => {
 
 if (clips.length) {
   $("play").onclick = () => playClip(clips[cur].start);
-  $("tail").onclick = () => playClip(Math.max(clips[cur].start, clips[cur].end - 3));
   $("ok").onclick = toggle;
+  $("txclip").onclick = () => { const c = clips[cur]; saveText(c.title, c.title + "\n" + fmt(c.start) + " to " + fmt(c.end) + "\n\n" + clipText(c)); };
+  $("txall").onclick = () => saveText(JOB.source_name.replace(/\.[^.]+$/, "") + " transcript", fullText());
+  $("txall").hidden = !WORDS.length;
 
   document.addEventListener("keydown", e => {
     if (/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;

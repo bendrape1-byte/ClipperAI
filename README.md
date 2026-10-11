@@ -19,8 +19,10 @@ Drop a video file or a YouTube link into Claude Code and ask for clips. If you k
 1. Claude transcribes the video. A 1h48m interview took 10.5 minutes on an Apple Silicon Mac with 24 GB.
 2. Claude reads the transcript and picks the clips.
 3. A review page opens in your browser. It plays each clip straight from the original file, so there is nothing to wait for.
-4. Drag the two ends of the green bar under the player until the clip starts and ends cleanly, then approve it. The page shows the words the clip now starts and ends on while you drag.
+4. Drag the two ends of the green bar under the player until the clip starts and ends cleanly, then approve it.
 5. Press "Copy approved clips", paste the result into Claude and say whether you want Premiere or CapCut.
+
+If you need the text, open Transcript under the trim bar. From there you can save the transcript of the clip you are on, or of the whole video, as a text file.
 
 Keys on the review page: Space plays or pauses, the up and down arrows change clip, A approves, the left and right arrows move the in point, and Shift with the arrows moves the out point. Cmd+Z undoes a trim and Shift+Cmd+Z brings it back.
 
