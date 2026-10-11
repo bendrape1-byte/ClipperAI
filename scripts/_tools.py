@@ -1,4 +1,4 @@
-"""Make the skill's own copies of ffmpeg, ffprobe and yt-dlp findable. Stdlib only."""
+"""Make the skill's own copies of ffmpeg and ffprobe findable. Stdlib only."""
 import json
 import os
 from pathlib import Path

@@ -1,6 +1,6 @@
 ---
 name: clipper
-description: Find the best short-form clips in a long video (podcast, interview, talk) and hand them to an editor as a Premiere timeline or lossless clip files for CapCut. Runs fully local with no API keys - local Whisper transcription, clip selection by Claude, no video encoding. Use when the user gives a video file or YouTube link and wants clips, clip ideas, highlights, shorts, reels, or says "clip this", "find clips", "/clipper".
+description: Find the best short-form clips in a long video (podcast, interview, talk) and hand them to an editor as a Premiere timeline or lossless clip files for CapCut. Runs fully local with no API keys - local Whisper transcription, clip selection by Claude, no video encoding. Works on a local video file the user provides (it never downloads videos; given a link, ask the user for the downloaded file). Use when the user gives a video file or a link and wants clips, clip ideas, highlights, shorts, reels, or says "clip this", "find clips", "/clipper".
 ---
 
 # Clipper
@@ -27,18 +27,14 @@ or a lossless stream copy.
 Use the venv python from `config.json` (`"python"`):
 
 ```
-<python> SKILL_DIR/scripts/transcribe.py "<file path or YouTube URL>"
+<python> SKILL_DIR/scripts/transcribe.py "<file path>"
 <python> SKILL_DIR/scripts/transcribe.py "<file>" --srt "<subtitles.srt>"     # weak machine
 ```
 
-With a link on macOS, the script first hands it to the user's 4K Video Downloader (it copies the link,
-triggers the app's Paste Link command and waits for the app to finish), so the file arrives in the
-quality the editor has set there. Tell the user the app will open and that macOS may ask once for
-permission to control it. If the app is missing, does not take the link, or is set to audio only, the script
-falls back to its own downloader (H.264, max 1080p; `--no-4k --best` for the top format). If both fail, do not
-debug: ask the user to download the video in 4K Video Downloader by hand and continue with that file.
-Files from that app land in `~/Movies/4K Video Downloader+/`; if the user names a video without
-giving a path, look there.
+The skill works on a video file that is already on this machine, and the user gets that file
+themselves. Never download a video, by any means: no downloader tools, no browser, no driving another
+app. If the user gives a link or only names a video, ask them to download it (the team uses 4K Video
+Downloader) and to drag the file into Claude Code or paste its path. Wait for the file.
 
 Run it in the background for long videos and tell the user it is running; the first run also downloads
 the model. It prints the job folder. If the user named the
