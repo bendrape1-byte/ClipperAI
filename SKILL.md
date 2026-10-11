@@ -31,14 +31,17 @@ Use the venv python from `config.json` (`"python"`):
 <python> SKILL_DIR/scripts/transcribe.py "<file>" --srt "<subtitles.srt>"     # weak machine
 ```
 
-Editors normally download the video with 4K Video Downloader first; its files land in
-`~/Movies/4K Video Downloader+/`. If the user names a video without giving a path, look there. A
-YouTube link works too, but when the download fails, do not debug it: ask the user to download the
-video with 4K Video Downloader and continue with that file.
+With a link on macOS, the script first hands it to the user's 4K Video Downloader (it copies the link,
+triggers the app's Paste Link command and waits for the app to finish), so the file arrives in the
+quality the editor has set there. Tell the user the app will open and that macOS may ask once for
+permission to control it. If the app is missing or does not take the link, the script falls back to
+its own downloader (H.264, max 1080p; `--no-4k --best` for the top format). If both fail, do not
+debug: ask the user to download the video in 4K Video Downloader by hand and continue with that file.
+Files from that app land in `~/Movies/4K Video Downloader+/`; if the user names a video without
+giving a path, look there.
 
 Run it in the background for long videos and tell the user it is running; the first run also downloads
-the model. It prints the job folder. YouTube links download as H.264 (max 1080p) so they play
-everywhere; add `--best` only if the user asks for the highest resolution. If the user named the
+the model. It prints the job folder. If the user named the
 guests or the show, pass the names with `--prompt "Name One, Name Two, special terms"` so Whisper
 spells them correctly.
 

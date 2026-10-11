@@ -14,7 +14,7 @@ Claude downloads the skill, checks your machine, tells you what it is about to i
 
 ## Use
 
-Download the video the way you always do, with 4K Video Downloader, then drop the file into Claude Code and ask for clips. A YouTube link works too, but YouTube blocks outside downloaders every few weeks, so the file is the reliable route. If you know who is talking, say so. Whisper spells names better when it has seen them.
+Paste a YouTube link into Claude Code and ask for clips. On a Mac, Claude hands the link to your 4K Video Downloader, the same way you would paste it yourself, and carries on when the download has finished. The first time, macOS asks whether Claude may control the app; say yes. You can also drop in a video file you already have. If you know who is talking, say so. Whisper spells names better when it has seen them.
 
 1. Claude transcribes the video. A 1h48m interview took 10.5 minutes on an Apple Silicon Mac with 24 GB.
 2. Claude reads the transcript and picks the clips.
@@ -67,7 +67,9 @@ Tell the user what happened in one plain sentence, then do the fix yourself wher
 | The model download stops or is slow | It is 1.6 GB and resumes. Run the transcription again. |
 | Transcription crashes or the machine freezes | Not enough memory. Set `"model"` in `config.json` to `mlx-community/whisper-small-mlx` (Apple Silicon) or `small` (other machines) and run again. Tell the user the spelling will be a little worse. |
 | The transcript is all lowercase with no punctuation | Whisper does this on some audio. Run the transcription again with `--prompt` set to one normal, punctuated sentence in the video's language, plus the speakers' names. |
-| A YouTube link fails to download | The script has already updated the downloader and tried a second time. Do not debug further. Ask the user to download the video with 4K Video Downloader, then look for the file in `~/Movies/4K Video Downloader+/` or ask for its path. |
+| macOS asks whether the terminal or Claude may control "System Events" or needs Accessibility access | Tell the user to allow it (System Settings > Privacy & Security > Accessibility and Automation). It is how the skill presses Paste Link in 4K Video Downloader. Then run the transcription again. |
+| The output says 4K Video Downloader "did not take the link" or "did not start a download within 90 s" | The app showed a dialog instead of downloading (playlist question, sign-in, daily limit of the free version, unsupported site). The script already fell back to its own downloader. If that worked, carry on. If not, ask the user to look at the 4K Video Downloader window, download the video there by hand and give you the file. |
+| A link fails to download both ways | Do not debug further. Ask the user to download the video with 4K Video Downloader by hand, then look for the file in `~/Movies/4K Video Downloader+/` or ask for its path. |
 | `build_review.py` lists clips under `check` | The quotes did not match the transcript. Correct them in `candidates.json` as described in `SKILL.md` step 3 and run it again. Do not show the user a page with unchecked clips. |
 | The review page shows a black player or no picture | The browser cannot decode the source. Try Chrome first. If it is ProRes or HEVC, ask whether to make a one-time H.264 copy of the source for previewing; do not encode without asking. |
 | The player stays empty and the source was moved, renamed or sits on an unplugged drive | The page points at the original file's location. Have the user put the file back, or correct `source` in `job.json` and run `build_review.py` again. Approvals and trims are kept. |

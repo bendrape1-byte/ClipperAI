@@ -3,16 +3,21 @@
 Run with the skill's venv python (see config.json "python"):
   python transcribe.py SOURCE              local Whisper with word timestamps
   python transcribe.py SOURCE --srt FILE   no Whisper: use an existing .srt/.vtt
-  python transcribe.py URL --best          YouTube in the top format instead of H.264
+  python transcribe.py URL                 hands the link to 4K Video Downloader when it is installed (macOS),
+                                           otherwise downloads with yt-dlp
+  python transcribe.py URL --no-4k --best  yt-dlp, top format instead of H.264
   python transcribe.py SOURCE --prompt "Heidi Reichinnek, Indymedia"   spell these names right
 """
 import argparse
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
+import time
 from pathlib import Path
+from urllib.parse import quote
 
 from _tools import use_local_tools
 
@@ -21,6 +26,83 @@ os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")  # keep the output sh
 SKILL = Path(__file__).resolve().parent.parent
 use_local_tools()
 JOBS = Path.home() / "Movies" / "Clipper"
+
+
+APP4K = "4K Video Downloader+"
+PASTE_LINK = '''
+tell application "%s" to launch
+tell application "System Events"
+    repeat 60 times
+        if exists (first process whose name is "4kvideodownloaderplus") then exit repeat
+        delay 0.5
+    end repeat
+    delay 3
+    tell (first process whose name is "4kvideodownloaderplus")
+        repeat with mb in menu bar items of menu bar 1
+            repeat with mi in menu items of menu 1 of mb
+                try
+                    if value of attribute "AXMenuItemCmdChar" of mi is "V" then
+                        click mi
+                        return "ok"
+                    end if
+                end try
+            end repeat
+        end repeat
+    end tell
+end tell
+return "no paste command found"
+''' % APP4K
+
+
+def download_4k(url, log=lambda m: print(m, file=sys.stderr)):
+    """Hand the link to 4K Video Downloader the way an editor does: copy it, then trigger the app's
+    Paste Link command (found by its Cmd+V shortcut, so the app's language does not matter).
+    The app has no API; its download database tells us which file it wrote and when it is done.
+    Returns the file, or None when the app is missing or did not take the link. macOS only."""
+    data = Path.home() / "Library" / "Application Support" / "4kdownload.com" / APP4K / APP4K
+    if sys.platform != "darwin" or not Path("/Applications/%s.app" % APP4K).exists():
+        return None
+
+    def items():
+        dbs = sorted(data.glob("*.sqlite"), key=lambda f: f.stat().st_mtime)
+        if not dbs:
+            return []
+        con = sqlite3.connect("file:%s?mode=ro" % quote(str(dbs[-1])), uri=True, timeout=5)
+        try:
+            return con.execute("select id, filename, state from download_item order by id").fetchall()
+        except sqlite3.Error:
+            return []
+        finally:
+            con.close()
+
+    last = max([r[0] for r in items()] or [0])
+    clipboard = subprocess.run(["pbpaste"], stdout=subprocess.PIPE).stdout
+    try:
+        subprocess.run(["pbcopy"], input=url.encode())
+        r = subprocess.run(["osascript", "-e", PASTE_LINK], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        time.sleep(2)  # the app reads the clipboard when the command fires
+    finally:
+        subprocess.run(["pbcopy"], input=clipboard)
+    if r.stdout.strip() != "ok":
+        log("4K Video Downloader did not take the link: %s" % (r.stderr.strip() or r.stdout.strip()))
+        return None
+
+    DONE, started, seen = 1, time.time(), None
+    while True:
+        new = [x for x in items() if x[0] > last]
+        if not new and time.time() - started > 90:      # it showed a dialog or rejected the link
+            log("4K Video Downloader did not start a download within 90 s")
+            return None
+        if new:
+            _, filename, state = new[-1]
+            if state != seen:
+                log("4K Video Downloader: %s (state %s)" % (Path(filename or "?").name, state))
+                seen = state
+            f = Path(filename) if filename else None
+            if state == DONE and f and f.exists():
+                return f
+        # ponytail: no overall timeout; a 2-hour 4K video can take a long while. Stop the script to abort.
+        time.sleep(2)
 
 
 def download(url, best):
@@ -92,12 +174,17 @@ def main():
     ap.add_argument("source")
     ap.add_argument("--srt")
     ap.add_argument("--best", action="store_true")
+    ap.add_argument("--no-4k", action="store_true", help="skip 4K Video Downloader and use yt-dlp")
     ap.add_argument("--prompt", help="names and terms that occur in the video, to get their spelling right")
     a = ap.parse_args()
 
     if re.match(r"https?://", a.source):
-        src = download(a.source, a.best)
-        job = src.parent
+        src = None if a.no_4k else download_4k(a.source)
+        if src:  # 4K Video Downloader keeps the file in its own folder; the job goes next to the others
+            job = JOBS / src.stem
+        else:
+            src = download(a.source, a.best)
+            job = src.parent
     else:
         src = Path(a.source).expanduser().resolve()
         if not src.is_file():

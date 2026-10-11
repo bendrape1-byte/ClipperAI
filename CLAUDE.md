@@ -52,7 +52,12 @@ Validate UI changes by rebuilding a real job's `review.html` and loading it from
   a private `static-ffmpeg` into the venv, so no Homebrew or admin rights. yt-dlp is always the
   standalone build in `bin/`, even when one is on `PATH`: it updates itself (`transcribe.py` runs
   `-U` and retries once on failure), while a four-month-old Homebrew copy got HTTP 403 from YouTube
-  in testing. Local files from 4K Video Downloader are the primary input; links are a convenience.
+  in testing.
+- Links go to the editor's 4K Video Downloader first (macOS): `download_4k()` in `transcribe.py`
+  copies the link, clicks the app's Paste Link menu item via System Events (found by its Cmd+V
+  shortcut, so it is language-independent) and polls the app's SQLite database for the finished
+  file (`download_item.state` 0 = running, 1 = done). The app has no API; this is the whole
+  integration. yt-dlp is the fallback.
 - A new failure mode an editor can hit gets a row in the README troubleshooting table.
 - Hardware thresholds in `setup.py` are first guesses, measured only on a 24 GB Apple Silicon Mac.
   A fresh install was simulated there with the stock `/usr/bin/python3` (3.9) and no Homebrew.
