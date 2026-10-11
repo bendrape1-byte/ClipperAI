@@ -7,7 +7,7 @@ Clipper is a Claude Code skill. You give it a long video, it finds the parts wor
 You need Claude Code with a paid Claude plan, and access to this repo (ask Ben). Then paste this into Claude Code:
 
 ```
-Install the Clipper skill from https://github.com/bendrape1-byte/ClipperAI (branch clipper-skill) and set it up for me.
+Install the Clipper skill from https://github.com/bendrape1-byte/ClipperAI and set it up for me.
 ```
 
 Claude downloads the skill, checks your machine, tells you what it is about to install and installs it. All of it goes into the skill's own folder, so you do not need Homebrew or an admin password. The speech model is about 1.6 GB and downloads the first time you transcribe something.
@@ -43,7 +43,7 @@ Everything for a video lands in `~/Movies/Clipper/<video name>/`.
 
 Follow this when a user asks you to install Clipper.
 
-1. Clone into the user's skills folder: `git clone -b clipper-skill https://github.com/bendrape1-byte/ClipperAI ~/.claude/skills/clipper` (on Windows the folder is `%USERPROFILE%\.claude\skills\clipper`). If the folder already exists, run `git pull` inside it.
+1. Clone into the user's skills folder: `git clone https://github.com/bendrape1-byte/ClipperAI ~/.claude/skills/clipper` (on Windows the folder is `%USERPROFILE%\.claude\skills\clipper`). If the folder already exists, run `git pull` inside it.
 2. Read `SKILL.md` in that folder and do its step 0 (setup). Use `python` in place of `python3` on Windows.
 3. Tell the user in one or two sentences what was installed, then ask for a video.
 
