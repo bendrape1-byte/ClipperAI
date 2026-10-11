@@ -34,8 +34,8 @@ Use the venv python from `config.json` (`"python"`):
 With a link on macOS, the script first hands it to the user's 4K Video Downloader (it copies the link,
 triggers the app's Paste Link command and waits for the app to finish), so the file arrives in the
 quality the editor has set there. Tell the user the app will open and that macOS may ask once for
-permission to control it. If the app is missing or does not take the link, the script falls back to
-its own downloader (H.264, max 1080p; `--no-4k --best` for the top format). If both fail, do not
+permission to control it. If the app is missing, does not take the link, or is set to audio only, the script
+falls back to its own downloader (H.264, max 1080p; `--no-4k --best` for the top format). If both fail, do not
 debug: ask the user to download the video in 4K Video Downloader by hand and continue with that file.
 Files from that app land in `~/Movies/4K Video Downloader+/`; if the user names a video without
 giving a path, look there.

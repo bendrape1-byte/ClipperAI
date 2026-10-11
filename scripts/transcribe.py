@@ -105,6 +105,12 @@ def download_4k(url, log=lambda m: print(m, file=sys.stderr)):
         time.sleep(2)
 
 
+def has_video(path):
+    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_type",
+                          "-of", "csv=p=0", str(path)], stdout=subprocess.PIPE, text=True).stdout
+    return "video" in out
+
+
 def download(url, best):
     # H.264 + AAC plays in every browser and in CapCut.
     # ponytail: YouTube only serves H.264 up to 1080p; --best takes 4K (usually AV1) instead.
@@ -180,6 +186,11 @@ def main():
 
     if re.match(r"https?://", a.source):
         src = None if a.no_4k else download_4k(a.source)
+        if src and not has_video(src):
+            # The app downloads whatever it was last set to. We leave its settings alone and fetch the video ourselves.
+            print("4K Video Downloader is set to audio only: it saved %s, which has no picture. "
+                  "Downloading the video with yt-dlp instead (max 1080p)." % src.name, file=sys.stderr)
+            src = None
         if src:  # 4K Video Downloader keeps the file in its own folder; the job goes next to the others
             job = JOBS / src.stem
         else:
