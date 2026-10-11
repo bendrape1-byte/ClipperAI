@@ -12,6 +12,10 @@ from fractions import Fraction
 from pathlib import Path
 from xml.sax.saxutils import escape
 
+from _tools import use_local_tools
+
+use_local_tools()
+
 
 def probe(src):
     d = json.loads(subprocess.check_output([

@@ -15,8 +15,9 @@ or a lossless stream copy.
 
 1. Run `python3 SKILL_DIR/scripts/setup.py` and read the JSON.
 2. Tell the user in one or two sentences what their machine is and what you are about to install
-   (the tools in `missing_tools`, the Whisper package, and the model size from `note`). Then run each
-   entry of `commands` in order. Do not ask them to run anything themselves.
+   (everything in `installs_into_skill_folder`, and the model size from `note`). It all goes into this
+   skill's own folder; nothing is installed system-wide. Then run each entry of `commands` in order.
+   Do not ask them to run anything themselves.
 3. Run `python3 SKILL_DIR/scripts/setup.py --write`. It must report `"ready": true` and write `config.json`.
 4. If `config.backend` is `"none"`, the machine is too weak for local transcription. Tell the user they
    need a subtitle file (`.srt`) for each video, from any transcription service, and use the `--srt` path below.
@@ -131,12 +132,17 @@ python3 SKILL_DIR/scripts/export.py "<job>" --premiere    # premiere.xml: File >
 python3 SKILL_DIR/scripts/export.py "<job>" --capcut      # clips/*.mp4: drag into CapCut
 ```
 
-Both flags can be combined. Tell the user where the files are. For CapCut, mention once that each clip
+Both flags can be combined. Then show the user the result: open the `clips` folder for CapCut, or
+reveal `premiere.xml` (`open "<job>/clips"` / `open -R "<job>/premiere.xml"` on macOS, `explorer` on
+Windows). For CapCut, mention once that each clip
 starts up to a few seconds before its in-point (it has to start on a keyframe because nothing is
 re-encoded), so they trim the head in CapCut. The Premiere timeline is frame-accurate and links to the
 original source file, so that file must stay where it is.
 
 ## Notes
+
+- When any step fails, look the symptom up in the table at the end of `SKILL_DIR/README.md`
+  ("For Claude: when something goes wrong") before improvising.
 
 - If the review page shows a black player, the browser cannot decode the source (ProRes, some HEVC).
   Say so and offer a one-time H.264 proxy of the source; do not silently encode.

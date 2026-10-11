@@ -22,7 +22,9 @@ files for CapCut. Nothing is ever rendered or re-encoded.
 | `scripts/build_review.py` | `candidates.json` → sentence-snapped, de-duplicated `clips.json` + `review.html` |
 | `scripts/review_template.html` | The review UI: one static file, vanilla JS, no dependencies |
 | `scripts/export.py` | `approved.json` → `premiere.xml` (FCP7 XML) and/or stream-copied `clips/*` |
+| `scripts/_tools.py` | Adds the skill's private ffmpeg / yt-dlp folders (from `config.json`) to `PATH` |
 | `scripts/test_clipper.py` | Self-check for boundary matching and timecode maths |
+| `README.md` | Editor-facing guide, plus the install steps and troubleshooting table Claude follows |
 
 Jobs live outside the repo in `~/Movies/Clipper/<name>/`.
 
@@ -46,8 +48,11 @@ Validate UI changes by rebuilding a real job's `review.html` and loading it from
 - Ask before adding a dependency. The review page must keep working offline, opened via `file://`.
 - Never add a step that encodes video. Previews play the source; CapCut export is `-c copy`.
 - The scoring brief in `SKILL.md` is copied word for word from the old app. Change it deliberately.
-- `ffmpeg`, `ffprobe` and `yt-dlp` must be on `PATH`; `setup.py` prints the install command.
+- `ffmpeg`, `ffprobe` and `yt-dlp` are used from `PATH` when present. Otherwise `setup.py` installs
+  private copies into the venv (`static-ffmpeg`, `yt-dlp` from PyPI), so no Homebrew or admin rights.
+- A new failure mode an editor can hit gets a row in the README troubleshooting table.
 - Hardware thresholds in `setup.py` are first guesses, measured only on a 24 GB Apple Silicon Mac.
+  A fresh install was simulated there with the stock `/usr/bin/python3` (3.9) and no Homebrew.
 
 ## Direction
 

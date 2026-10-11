@@ -62,33 +62,33 @@ def main():
     apple = platform.system() == "Darwin" and platform.machine() == "arm64"
     cfg = pick(ram, cores, vram, apple)
 
+    # Tools that are not on PATH get a private copy inside the skill's venv, so nobody
+    # needs Homebrew, winget or admin rights: yt-dlp from PyPI, ffmpeg + ffprobe via static-ffmpeg.
     missing = [t for t in ("ffmpeg", "ffprobe", "yt-dlp") if not shutil.which(t)]
-    commands = []
-    if missing:
-        pkgs = sorted({"ffmpeg" if t.startswith("ff") else t for t in missing})
-        if platform.system() == "Darwin":
-            commands.append("brew install " + " ".join(pkgs))
-        elif WIN:
-            commands += ["winget install %s" % {"ffmpeg": "Gyan.FFmpeg", "yt-dlp": "yt-dlp.yt-dlp"}[p] for p in pkgs]
-        else:
-            commands.append("sudo apt install -y " + " ".join(pkgs))
+    need_ff = "ffmpeg" in missing or "ffprobe" in missing
+    pkgs = ([cfg["pip"]] if cfg["backend"] != "none" else []) \
+        + (["static-ffmpeg"] if need_ff else []) + (["yt-dlp"] if "yt-dlp" in missing else [])
 
-    whisper_ok = cfg["backend"] == "none"
-    if not whisper_ok and VENV_PY.exists():
-        mod = cfg["pip"].replace("-", "_")
-        whisper_ok = subprocess.call([str(VENV_PY), "-c", "import " + mod],
-                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
-    if not whisper_ok:
+    def has(pkg):
+        return VENV_PY.exists() and subprocess.call(
+            [str(VENV_PY), "-c", "import " + pkg.replace("-", "_")],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+
+    to_install = [p for p in pkgs if not has(p)]
+    commands = []
+    if to_install:
         if not VENV_PY.exists():
             commands.append('"%s" -m venv "%s"' % (sys.executable, SKILL / ".venv"))
-        commands.append('"%s" -m pip install %s' % (VENV_PY, cfg["pip"]))
+        commands.append('"%s" -m pip install %s' % (VENV_PY, " ".join(to_install)))
 
     ready = not commands
     plan = {
         "machine": {"os": platform.system(), "arch": platform.machine(), "ram_gb": round(ram, 1),
-                    "cores": cores, "nvidia_vram_gb": round(vram, 1)},
-        "config": dict(cfg, python=str(VENV_PY)),
+                    "cores": cores, "nvidia_vram_gb": round(vram, 1),
+                    "python": platform.python_version()},
+        "config": dict(cfg, python=str(VENV_PY if VENV_PY.exists() else sys.executable)),
         "missing_tools": missing,
+        "installs_into_skill_folder": to_install,
         "commands": commands,
         "ready": ready,
         "note": ("The model itself (about 1.6 GB for large-v3-turbo, less for small/base) downloads on the first transcription."
@@ -96,6 +96,13 @@ def main():
                  "This machine is too weak for local transcription. Use an .srt file: transcribe.py SOURCE --srt FILE"),
     }
     if "--write" in sys.argv and ready:
+        path = [str(VENV_PY.parent)] if VENV_PY.exists() else []
+        if need_ff:  # first call downloads the binaries (about 80 MB) into the venv
+            ff = subprocess.check_output([str(VENV_PY), "-c",
+                "import static_ffmpeg.run as r; print(r.get_or_fetch_platform_executables_else_raise()[0])"],
+                text=True, stderr=subprocess.DEVNULL).strip().splitlines()[-1]
+            path.append(str(Path(ff).parent))
+        plan["config"]["path"] = path
         (SKILL / "config.json").write_text(json.dumps(plan["config"], indent=2))
         plan["written"] = str(SKILL / "config.json")
     print(json.dumps(plan, indent=2))

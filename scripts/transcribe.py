@@ -14,9 +14,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+from _tools import use_local_tools
+
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")  # keep the output short enough to read
 
 SKILL = Path(__file__).resolve().parent.parent
+use_local_tools()
 JOBS = Path.home() / "Movies" / "Clipper"
 
 
